@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>morphicons · spike 01</title>
+<style>
+  :root {
+    --bg: #0c1017;
+    --panel: #111722;
+    --panel-2: #151d2a;
+    --line: #202a3a;
+    --ink: #e8edf5;
+    --muted: #6f7d90;
+    --amber: #e6a83c;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); }
+  body {
+    font-family: var(--sans);
+    color: var(--ink);
+    min-height: 100dvh;
+    display: flex;
+    justify-content: center;
+    padding: 22px 18px calc(22px + env(safe-area-inset-bottom));
+    -webkit-font-smoothing: antialiased;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wrap { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 14px; }
+
+  header .eyebrow {
+    font: 600 10.5px/1 var(--mono);
+    letter-spacing: .22em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  header h1 { font-size: 19px; font-weight: 650; letter-spacing: -.01em; margin-top: 7px; }
+  header .sub { font: 400 11.5px/1.5 var(--mono); color: var(--muted); margin-top: 5px; }
+
+  .stage {
+    width: 100%;
+    aspect-ratio: 1;
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: radial-gradient(120% 120% at 50% 0%, var(--panel-2), var(--panel) 60%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform .12s ease;
+  }
+  .stage:active { transform: scale(.985); }
+  .stage svg { width: 60%; height: 60%; overflow: visible; }
+  .stage .grid line { stroke: var(--line); stroke-width: .05; }
+  .stage .grid .axis { stroke-width: .1; }
+  #mp {
+    stroke: var(--ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  .readout {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 86px;
+  }
+  .readout .k {
+    font: 600 9.5px/1 var(--mono);
+    letter-spacing: .2em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  #pair { font: 500 14px/1.2 var(--mono); }
+  #math {
+    font: 400 11.5px/1.5 var(--mono);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #verdict { font: 400 11.5px/1.4 var(--mono); color: var(--muted); min-height: 16px; }
+  #verdict.pure { color: var(--amber); }
+
+  .controls { display: flex; gap: 10px; }
+  .seg {
+    flex: 1;
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: var(--panel);
+    padding: 3px;
+    gap: 3px;
+  }
+  .seg button {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: 500 12px/1 var(--sans);
+    padding: 9px 4px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .seg button.active { background: var(--panel-2); color: var(--ink); }
+
+  .icons { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .icons button {
+    aspect-ratio: 1;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .icons svg { width: 21px; height: 21px; }
+  .icons path {
+    stroke: var(--muted);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+  .icons button.active { border-color: var(--amber); }
+  .icons button.active path { stroke: var(--ink); }
+
+  .hint { font: 400 11px/1.6 var(--mono); color: var(--muted); text-align: center; }
+  .hint b { color: var(--ink); font-weight: 500; }
+
+  button:focus-visible, .stage:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">morphicons &middot; spike 01</div>
+    <h1>Polar icon morphing</h1>
+    <div class="sub">2D Procrustes &middot; N=64 per subpath &middot; 0 dependencies</div>
+  </header>
+
+  <button class="stage" id="stage" type="button" aria-label="Cycle to the next icon">
+    <svg viewBox="0 0 24 24" role="img" aria-label="Morphing icon">
+      <g class="grid" aria-hidden="true">
+        <line x1="0" y1="4" x2="24" y2="4"/><line x1="0" y1="8" x2="24" y2="8"/>
+        <line class="axis" x1="0" y1="12" x2="24" y2="12"/>
+        <line x1="0" y1="16" x2="24" y2="16"/><line x1="0" y1="20" x2="24" y2="20"/>
+        <line x1="4" y1="0" x2="4" y2="24"/><line x1="8" y1="0" x2="8" y2="24"/>
+        <line class="axis" x1="12" y1="0" x2="12" y2="24"/>
+        <line x1="16" y1="0" x2="16" y2="24"/><line x1="20" y1="0" x2="20" y2="24"/>
+      </g>
+      <path id="mp" d=""/>
+    </svg>
+  </button>
+
+  <div class="readout">
+    <div class="k">Pair &middot; detected similarity</div>
+    <div id="pair">&mdash;</div>
+    <div id="math">&mdash;</div>
+    <div id="verdict"></div>
+  </div>
+
+  <div class="controls">
+    <div class="seg" id="mode" role="group" aria-label="Interpolation mode">
+      <button type="button" data-v="polar" class="active">Polar</button>
+      <button type="button" data-v="linear">Linear</button>
+    </div>
+    <div class="seg" id="preset" role="group" aria-label="Spring preset">
+      <button type="button" data-v="smooth">Smooth</button>
+      <button type="button" data-v="snappy" class="active">Snappy</button>
+      <button type="button" data-v="bouncy">Bouncy</button>
+    </div>
+  </div>
+
+  <div class="icons" id="icons"></div>
+
+  <p class="hint">Compare <b>Polar</b> vs <b>Linear</b> on <b>&rarr; &rarr; &darr;</b> &middot; tap in bursts to interrupt the spring</p>
+</div>
+<script>
+/* morphicons spike — math core, zero dependencies.
+   Icon = list of subpaths; subpath = polyline of vertices (corners).
+   Pipeline: resample (arc-length + anchored corners) → subpath matching
+   → 2D Procrustes (closed form) → polar interpolation → serialize. */
+
+// ---------- resampling ----------
+// Samples an open polyline at N points equidistant by arc length, forcing
+// every vertex (corner) to be exactly a sample point. Interval apportionment
+// per segment: proportional to length, minimum 1, largest-remainder method
+// so they sum exactly to N-1.
+function resample(verts, N) {
+  const m = verts.length - 1;
+  const lens = new Array(m);
+  let L = 0;
+  for (let k = 0; k < m; k++) {
+    const dx = verts[k + 1][0] - verts[k][0];
+    const dy = verts[k + 1][1] - verts[k][1];
+    lens[k] = Math.hypot(dx, dy);
+    L += lens[k];
+  }
+  const ideal = lens.map((l) => ((N - 1) * l) / (L || 1));
+  const counts = ideal.map((q) => Math.max(1, Math.floor(q)));
+  let R = N - 1 - counts.reduce((a, b) => a + b, 0);
+  if (R > 0) {
+    const order = ideal
+      .map((q, i) => [q - Math.floor(q), i])
+      .sort((a, b) => b[0] - a[0]);
+    for (let j = 0; j < R; j++) counts[order[j % m][1]]++;
+  }
+  while (R < 0) {
+    let bi = 0;
+    for (let i = 1; i < m; i++) if (counts[i] > counts[bi]) bi = i;
+    if (counts[bi] <= 1) break;
+    counts[bi]--;
+    R++;
+  }
+  const out = new Float64Array(N * 2);
+  let idx = 0;
+  for (let k = 0; k < m; k++) {
+    const x0 = verts[k][0], y0 = verts[k][1];
+    const x1 = verts[k + 1][0], y1 = verts[k + 1][1];
+    for (let j = 0; j < counts[k]; j++) {
+      const t = j / counts[k];
+      out[idx * 2] = x0 + (x1 - x0) * t;
+      out[idx * 2 + 1] = y0 + (y1 - y0) * t;
+      idx++;
+    }
+  }
+  out[idx * 2] = verts[m][0];
+  out[idx * 2 + 1] = verts[m][1];
+  return out;
+}
+
+// ---------- geometric utilities ----------
+function centroid(p) {
+  const n = p.length / 2;
+  let cx = 0, cy = 0;
+  for (let i = 0; i < n; i++) { cx += p[2 * i]; cy += p[2 * i + 1]; }
+  return [cx / n, cy / n];
+}
+
+function polyLen(p) {
+  const n = p.length / 2;
+  let L = 0;
+  for (let i = 1; i < n; i++)
+    L += Math.hypot(p[2 * i] - p[2 * i - 2], p[2 * i + 1] - p[2 * i - 1]);
+  return L;
+}
+
+function reversePts(p) {
+  const n = p.length / 2;
+  const out = new Float64Array(2 * n);
+  for (let i = 0; i < n; i++) {
+    out[2 * i] = p[2 * (n - 1 - i)];
+    out[2 * i + 1] = p[2 * (n - 1 - i) + 1];
+  }
+  return out;
+}
+
+// ---------- Procrustes 2D, forma cerrada ----------
+// Optimal similarity (θ, σ) minimizing Σ|σ·R(θ)·(a−cA) − (b−cB)|².
+// θ* = atan2(Σ(aₓbᵧ−aᵧbₓ), Σ(aₓbₓ+aᵧbᵧ)); σ* by zero derivative.
+// res = RMS residual normalized by b's energy (0 → same shape).
+function procrustes(a, b, ca, cb) {
+  const n = a.length / 2;
+  let sxx = 0, sxy = 0, syx = 0, syy = 0, na = 0, nb = 0;
+  for (let i = 0; i < n; i++) {
+    const ax = a[2 * i] - ca[0], ay = a[2 * i + 1] - ca[1];
+    const bx = b[2 * i] - cb[0], by = b[2 * i + 1] - cb[1];
+    sxx += ax * bx; syy += ay * by; sxy += ax * by; syx += ay * bx;
+    na += ax * ax + ay * ay; nb += bx * bx + by * by;
+  }
+  const theta = Math.atan2(sxy - syx, sxx + syy);
+  const num = Math.cos(theta) * (sxx + syy) + Math.sin(theta) * (sxy - syx);
+  let sigma = na > 1e-12 ? num / na : 1;
+  if (!(sigma > 1e-6)) sigma = 1e-6;
+  const res2 = Math.max(0, sigma * sigma * na - 2 * sigma * num + nb);
+  const res = nb > 1e-12 ? Math.sqrt(res2 / nb) : 0;
+  return { theta, sigma, res };
+}
+
+// Tries both orientations of b (directional correspondence).
+// Score = residual + λ·|θ|/π: minimizes deformation and, on ties (shapes
+// symmetric like lines), picks the shortest rotation — keeps a line from
+// spinning 135° when −45° produces the same result.
+function alignPair(aPts, bPts) {
+  const ca = centroid(aPts);
+  const cb = centroid(bPts);
+  const rev = reversePts(bPts);
+  const pf = procrustes(aPts, bPts, ca, cb);
+  const pr = procrustes(aPts, rev, ca, cb);
+  const L = 0.05;
+  const sf = pf.res + (L * Math.abs(pf.theta)) / Math.PI;
+  const sr = pr.res + (L * Math.abs(pr.theta)) / Math.PI;
+  const useRev = sr < sf;
+  return { ca, cb, b: useRev ? rev : bPts, ...(useRev ? pr : pf) };
+}
+
+// ---------- matching de subpaths ----------
+function pairCost(a, b) {
+  const ca = centroid(a), cb = centroid(b);
+  return (
+    Math.hypot(ca[0] - cb[0], ca[1] - cb[1]) +
+    0.35 * Math.abs(polyLen(a) - polyLen(b))
+  );
+}
+
+// p === q: best permutation by brute force (p ≤ 4).
+function bestPermutation(A, B) {
+  const n = A.length;
+  const idx = Array.from({ length: n }, (_, i) => i);
+  let best = null, bc = Infinity;
+  const perm = (arr, k) => {
+    if (k === n) {
+      let c = 0;
+      for (let i = 0; i < n; i++) c += pairCost(A[i], B[arr[i]]);
+      if (c < bc) { bc = c; best = arr.slice(); }
+      return;
+    }
+    for (let i = k; i < n; i++) {
+      [arr[k], arr[i]] = [arr[i], arr[k]];
+      perm(arr, k + 1);
+      [arr[k], arr[i]] = [arr[i], arr[k]];
+    }
+  };
+  perm(idx, 0);
+  return best;
+}
+
+// p ≠ q: surjective assignment from the large side to the small one
+// (leftovers duplicate — "cell division"), minimum cost, enumeration
+// (≤ 3^3 cases).
+function bestSurjection(big, small) {
+  const B = big.length, S = small.length;
+  let best = null, bc = Infinity;
+  const f = new Array(B);
+  const rec = (i) => {
+    if (i === B) {
+      if (new Set(f).size < S) return;
+      let c = 0;
+      for (let j = 0; j < B; j++) c += pairCost(big[j], small[f[j]]);
+      if (c < bc) { bc = c; best = f.slice(); }
+      return;
+    }
+    for (let s = 0; s < S; s++) { f[i] = s; rec(i + 1); }
+  };
+  rec(0);
+  return best;
+}
+
+// ---------- morph plan ----------
+// srcSubs/dstSubs: arrays of Float64Array(2N). Returns a cacheable plan:
+// per pair, A's centered points (aC), B brought into A's frame
+// (bT = R(−θ)(b−cB)/σ), B oriented raw (bO, for linear mode) and the
+// similarity (θ, ln σ, centroids).
+function buildPlan(srcSubs, dstSubs) {
+  const p = srcSubs.length, q = dstSubs.length;
+  const pairs = [];
+  if (p === q) {
+    const perm = bestPermutation(srcSubs, dstSubs);
+    for (let i = 0; i < p; i++) pairs.push([i, perm[i]]);
+  } else if (p < q) {
+    const f = bestSurjection(dstSubs, srcSubs);
+    for (let j = 0; j < q; j++) pairs.push([f[j], j]);
+  } else {
+    const f = bestSurjection(srcSubs, dstSubs);
+    for (let i = 0; i < p; i++) pairs.push([i, f[i]]);
+  }
+  const n = srcSubs[0].length / 2;
+  const items = pairs.map(([si, di]) => {
+    const a = srcSubs[si];
+    const al = alignPair(a, dstSubs[di]);
+    const aC = new Float64Array(2 * n);
+    const bT = new Float64Array(2 * n);
+    const bO = new Float64Array(2 * n);
+    const cos = Math.cos(-al.theta), sin = Math.sin(-al.theta);
+    for (let i = 0; i < n; i++) {
+      aC[2 * i] = a[2 * i] - al.ca[0];
+      aC[2 * i + 1] = a[2 * i + 1] - al.ca[1];
+      const bx = al.b[2 * i] - al.cb[0], by = al.b[2 * i + 1] - al.cb[1];
+      bT[2 * i] = (bx * cos - by * sin) / al.sigma;
+      bT[2 * i + 1] = (bx * sin + by * cos) / al.sigma;
+      bO[2 * i] = al.b[2 * i];
+      bO[2 * i + 1] = al.b[2 * i + 1];
+    }
+    return {
+      a, aC, bT, bO,
+      ca: al.ca, cb: al.cb,
+      theta: al.theta, lnSigma: Math.log(al.sigma), res: al.res,
+    };
+  });
+  return { items, n };
+}
+
+// ---------- interpolation ----------
+// Polar: geodesic similarity (linear angle, log-linear scale, lerped
+// centroid) applied to the residual blend in the aligned frame.
+// P(t) = c(t) + σ^t·R(t·θ)·[(1−t)·aC + t·bT]
+function interpPolar(plan, t, out) {
+  for (let k = 0; k < plan.items.length; k++) {
+    const it = plan.items[k], o = out[k], n = plan.n;
+    const cx = it.ca[0] + (it.cb[0] - it.ca[0]) * t;
+    const cy = it.ca[1] + (it.cb[1] - it.ca[1]) * t;
+    const s = Math.exp(it.lnSigma * t);
+    const ang = it.theta * t;
+    const cos = Math.cos(ang) * s, sin = Math.sin(ang) * s;
+    for (let i = 0; i < n; i++) {
+      const px = it.aC[2 * i] + (it.bT[2 * i] - it.aC[2 * i]) * t;
+      const py = it.aC[2 * i + 1] + (it.bT[2 * i + 1] - it.aC[2 * i + 1]) * t;
+      o[2 * i] = cx + px * cos - py * sin;
+      o[2 * i + 1] = cy + px * sin + py * cos;
+    }
+  }
+}
+
+// Linear: raw coordinate lerp (same correspondence, no decomposition).
+function interpLinear(plan, t, out) {
+  for (let k = 0; k < plan.items.length; k++) {
+    const it = plan.items[k], o = out[k], n = plan.n;
+    for (let i = 0; i < n; i++) {
+      o[2 * i] = it.a[2 * i] + (it.bO[2 * i] - it.a[2 * i]) * t;
+      o[2 * i + 1] = it.a[2 * i + 1] + (it.bO[2 * i + 1] - it.a[2 * i + 1]) * t;
+    }
+  }
+}
+
+// ---------- serialization ----------
+function fmt(v) {
+  return String(Math.round(v * 100) / 100);
+}
+function serialize(subs) {
+  let d = "";
+  for (let k = 0; k < subs.length; k++) {
+    const o = subs[k], n = o.length / 2;
+    d += "M" + fmt(o[0]) + " " + fmt(o[1]);
+    for (let i = 1; i < n; i++) d += "L" + fmt(o[2 * i]) + " " + fmt(o[2 * i + 1]);
+  }
+  return d;
+}
+
+// ---------- spring (damped oscillator, semi-implicit Euler) ----------
+function Spring() {
+  this.x = 1; this.v = 0; this.k = 250; this.c = 24;
+}
+Spring.prototype.config = function (k, c) { this.k = k; this.c = c; };
+Spring.prototype.start = function () {
+  this.x = 0;
+  if (this.v > 14) this.v = 14;
+  if (this.v < -14) this.v = -14;
+};
+Spring.prototype.step = function (dt) {
+  const h = 1 / 240;
+  let steps = Math.max(1, Math.min(16, Math.ceil(dt / h)));
+  const s = dt / steps;
+  for (let i = 0; i < steps; i++) {
+    const a = this.k * (1 - this.x) - this.c * this.v;
+    this.v += a * s;
+    this.x += this.v * s;
+  }
+  return Math.abs(1 - this.x) < 0.001 && Math.abs(this.v) < 0.02;
+};
+
+if (typeof module !== "undefined") {
+  module.exports = {
+    resample, centroid, polyLen, reversePts, procrustes, alignPair,
+    buildPlan, interpPolar, interpLinear, serialize, Spring,
+  };
+}
+
+/* morphicons spike — app. Consumes the core; a single <path>, one rAF, zero deps. */
+
+const N = 64;
+
+const ICONS = {
+  menu: { label: "menu", d: "M4 6h16M4 12h16M4 18h16",
+    subs: [[[4, 6], [20, 6]], [[4, 12], [20, 12]], [[4, 18], [20, 18]]] },
+  x: { label: "x", d: "M18 6 6 18M6 6l12 12",
+    subs: [[[18, 6], [6, 18]], [[6, 6], [18, 18]]] },
+  plus: { label: "plus", d: "M5 12h14M12 5v14",
+    subs: [[[5, 12], [19, 12]], [[12, 5], [12, 19]]] },
+  "arrow-right": { label: "\u2192", d: "M5 12h14M12 5l7 7-7 7",
+    subs: [[[5, 12], [19, 12]], [[12, 5], [19, 12], [12, 19]]] },
+  "arrow-down": { label: "\u2193", d: "M12 5v14M19 12l-7 7-7-7",
+    subs: [[[12, 5], [12, 19]], [[19, 12], [12, 19], [5, 12]]] },
+  check: { label: "check", d: "M20 6 9 17l-5-5",
+    subs: [[[20, 6], [9, 17], [4, 12]]] },
+};
+const ORDER = ["menu", "x", "plus", "arrow-right", "arrow-down", "check"];
+
+const PRESETS = {
+  smooth: { k: 170, c: 26 },
+  snappy: { k: 420, c: 30 },
+  bouncy: { k: 300, c: 14 },
+};
+
+const $ = (id) => document.getElementById(id);
+const pathEl = $("mp");
+const pairEl = $("pair");
+const mathEl = $("math");
+const verdictEl = $("verdict");
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+let mode = "polar";
+let cur = "menu";
+let fromName = "menu";
+let state = "rest";
+let plan = null;
+let out = null;
+let raf = 0;
+let last = 0;
+const spring = new Spring();
+spring.config(PRESETS.snappy.k, PRESETS.snappy.c);
+
+function canonicalSubs(name) {
+  return ICONS[name].subs.map((v) => resample(v, N));
+}
+
+function updateReadout() {
+  pairEl.textContent = ICONS[fromName].label + " \u2192 " + ICONS[cur].label;
+  if (!plan) { mathEl.textContent = "\u2014"; verdictEl.textContent = ""; return; }
+  const th = plan.items.map((it) => Math.round((it.theta * 180) / Math.PI) + "\u00b0");
+  const sg = plan.items.map((it) => Math.exp(it.lnSigma).toFixed(2));
+  const maxRes = Math.max.apply(null, plan.items.map((it) => it.res));
+  const maxTh = Math.max.apply(null, plan.items.map((it) => Math.abs(it.theta)));
+  mathEl.textContent =
+    "\u03b8 [" + th.join(" ") + "]  \u03c3 [" + sg.join(" ") + "]  res " + maxRes.toFixed(3);
+  let v, pure = false;
+  if (mode === "linear") {
+    v = "linear mode \u2014 coordinate lerp, no decomposition";
+  } else if (maxRes < 0.03 && maxTh > 0.09) {
+    v = "pure rotation \u2014 emergent rotation group"; pure = true;
+  } else if (maxRes < 0.03) {
+    v = "pure similarity \u2014 translation / scale";
+  } else if (maxRes < 0.3) {
+    v = "dominant rotation + non-rigid residual";
+  } else {
+    v = "coordinate morph in the aligned frame";
+  }
+  verdictEl.textContent = v;
+  verdictEl.classList.toggle("pure", pure);
+}
+
+function setActive() {
+  document.querySelectorAll("[data-icon]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.icon === cur);
+  });
+}
+
+function tick(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  const done = spring.step(dt);
+  (mode === "polar" ? interpPolar : interpLinear)(plan, spring.x, out);
+  pathEl.setAttribute("d", serialize(out));
+  if (done) {
+    pathEl.setAttribute("d", ICONS[cur].d);
+    state = "rest";
+    raf = 0;
+    return;
+  }
+  raf = requestAnimationFrame(tick);
+}
+
+function morphTo(name) {
+  if (name === cur && state === "rest") return;
+  fromName = cur;
+  const src = state === "anim"
+    ? out.map((o) => Float64Array.from(o))
+    : canonicalSubs(cur);
+  const dst = canonicalSubs(name);
+  plan = buildPlan(src, dst);
+  cur = name;
+  setActive();
+  updateReadout();
+  if (reduced) {
+    pathEl.setAttribute("d", ICONS[name].d);
+    state = "rest";
+    return;
+  }
+  out = plan.items.map(() => new Float64Array(2 * N));
+  if (state === "rest") spring.v = 0;
+  spring.start();
+  state = "anim";
+  if (!raf) {
+    last = performance.now();
+    raf = requestAnimationFrame(tick);
+  }
+}
+
+// ---------- UI construction ----------
+const iconsRow = $("icons");
+for (const name of ORDER) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.dataset.icon = name;
+  b.setAttribute("aria-label", "Go to " + name);
+  b.innerHTML =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' +
+    ICONS[name].d + '"/></svg>';
+  b.addEventListener("click", () => morphTo(name));
+  iconsRow.appendChild(b);
+}
+
+$("stage").addEventListener("click", () => {
+  const next = ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length];
+  morphTo(next);
+});
+
+function segmented(id, onPick) {
+  const root = $(id);
+  root.querySelectorAll("button").forEach((b) => {
+    b.addEventListener("click", () => {
+      root.querySelectorAll("button").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      onPick(b.dataset.v);
+    });
+  });
+}
+segmented("mode", (v) => { mode = v; updateReadout(); });
+segmented("preset", (v) => { const p = PRESETS[v]; spring.config(p.k, p.c); });
+
+pathEl.setAttribute("d", ICONS[cur].d);
+setActive();
+pairEl.textContent = ICONS[cur].label;
+mathEl.textContent = "tap the icon to start";
+verdictEl.textContent = "";
+
+</script>
+</body>
+</html>

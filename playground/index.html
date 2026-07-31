@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>morphicons · playground</title>
+<style>
+  :root {
+    --bg: #0c1017;
+    --panel: #111722;
+    --panel-2: #151d2a;
+    --line: #202a3a;
+    --ink: #e8edf5;
+    --muted: #6f7d90;
+    --amber: #e6a83c;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); }
+  body {
+    font-family: var(--sans);
+    color: var(--ink);
+    min-height: 100dvh;
+    display: flex;
+    justify-content: center;
+    padding: 22px 18px calc(22px + env(safe-area-inset-bottom));
+    -webkit-font-smoothing: antialiased;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wrap { width: 100%; max-width: 460px; display: flex; flex-direction: column; gap: 14px; }
+
+  header .eyebrow {
+    font: 600 10.5px/1 var(--mono);
+    letter-spacing: .22em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  header h1 { font-size: 19px; font-weight: 650; letter-spacing: -.01em; margin-top: 7px; }
+  header .sub { font: 400 11.5px/1.5 var(--mono); color: var(--muted); margin-top: 5px; }
+
+  .stage {
+    width: 100%;
+    aspect-ratio: 1;
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: radial-gradient(120% 120% at 50% 0%, var(--panel-2), var(--panel) 60%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform .12s ease;
+  }
+  .stage:active { transform: scale(.985); }
+  .stage svg { width: 62%; height: 62%; overflow: visible; }
+  .stage .grid line { stroke: var(--line); stroke-width: .05; }
+  .stage .grid .axis { stroke-width: .1; }
+  #mp {
+    stroke: var(--ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  .readout {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 92px;
+  }
+  .readout .k {
+    font: 600 9.5px/1 var(--mono);
+    letter-spacing: .2em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  #pair { font: 500 13.5px/1.2 var(--mono); }
+  #math {
+    font: 400 11.5px/1.5 var(--mono);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #verdict { font: 400 11.5px/1.4 var(--mono); color: var(--muted); min-height: 16px; }
+  #verdict.pure { color: var(--amber); }
+
+  .controls { display: flex; gap: 10px; }
+  .seg {
+    flex: 1;
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: var(--panel);
+    padding: 3px;
+    gap: 3px;
+  }
+  .seg button {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: 500 12px/1 var(--sans);
+    padding: 9px 4px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .seg button.active { background: var(--panel-2); color: var(--ink); }
+
+  .scrub {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .scrub .k {
+    font: 600 9.5px/1 var(--mono);
+    letter-spacing: .2em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .scrub .k b { color: var(--ink); font-weight: 500; letter-spacing: normal; text-transform: none; }
+  .scrubrow { display: flex; align-items: center; gap: 12px; }
+  .scrubrow input[type="range"] { flex: 1; accent-color: var(--amber); }
+  #tval {
+    font: 400 11.5px/1 var(--mono);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 62px;
+    text-align: right;
+  }
+  .tquick { display: flex; gap: 6px; }
+  .tquick button {
+    flex: 1;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font: 500 11px/1 var(--mono);
+    padding: 7px 0;
+    cursor: pointer;
+  }
+  .tquick button:hover { color: var(--ink); }
+
+  .lib { display: flex; flex-direction: column; gap: 8px; }
+  .libhead {
+    font: 600 10px/1 var(--mono);
+    letter-spacing: .2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .libhead span {
+    font: 400 10px/1 var(--mono);
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  .icons { display: grid; grid-template-columns: repeat(8, 1fr); gap: 7px; }
+  .icons button {
+    aspect-ratio: 1;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+  }
+  .icons svg { width: 20px; height: 20px; }
+  .icons path {
+    stroke: var(--muted);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+  .icons button.active { border-color: var(--amber); }
+  .icons button.active path { stroke: var(--ink); }
+
+  .hint { font: 400 11px/1.6 var(--mono); color: var(--muted); text-align: center; }
+  .hint b { color: var(--ink); font-weight: 500; }
+
+  button:focus-visible, .stage:focus-visible, input:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">morphicons &middot; playground</div>
+    <h1>Universal icon morphing</h1>
+    <div class="sub">real TS core &middot; DOM driver &middot; Lucide + Feather + Tabler &middot; 0 deps</div>
+  </header>
+
+  <button class="stage" id="stage" type="button" aria-label="Cycle to the next icon">
+    <svg viewBox="0 0 24 24" role="img" aria-label="Morphing icon">
+      <g class="grid" aria-hidden="true">
+        <line x1="0" y1="4" x2="24" y2="4"/><line x1="0" y1="8" x2="24" y2="8"/>
+        <line class="axis" x1="0" y1="12" x2="24" y2="12"/>
+        <line x1="0" y1="16" x2="24" y2="16"/><line x1="0" y1="20" x2="24" y2="20"/>
+        <line x1="4" y1="0" x2="4" y2="24"/><line x1="8" y1="0" x2="8" y2="24"/>
+        <line class="axis" x1="12" y1="0" x2="12" y2="24"/>
+        <line x1="16" y1="0" x2="16" y2="24"/><line x1="20" y1="0" x2="20" y2="24"/>
+      </g>
+      <path id="mp" d=""/>
+    </svg>
+  </button>
+
+  <div class="readout">
+    <div class="k">Pair &middot; detected similarity</div>
+    <div id="pair">&mdash;</div>
+    <div id="math">&mdash;</div>
+    <div id="verdict"></div>
+  </div>
+
+  <div class="controls">
+    <div class="seg" id="mode" role="group" aria-label="Interpolation mode">
+      <button type="button" data-v="polar" class="active">Polar</button>
+      <button type="button" data-v="linear">Linear</button>
+    </div>
+    <div class="seg" id="preset" role="group" aria-label="Spring preset">
+      <button type="button" data-v="smooth">Smooth</button>
+      <button type="button" data-v="snappy" class="active">Snappy</button>
+      <button type="button" data-v="bouncy">Bouncy</button>
+    </div>
+  </div>
+
+  <div class="scrub">
+    <div class="k">Scrub &middot; <b id="scrubpair">morph something first</b></div>
+    <div class="scrubrow">
+      <input type="range" id="tslider" min="0" max="1" step="0.001" value="1"
+             aria-label="Morph progress t" disabled>
+      <span id="tval">t = 1.000</span>
+    </div>
+    <div class="tquick" id="tquick" role="group" aria-label="t shortcuts">
+      <button type="button" data-t="0">0</button>
+      <button type="button" data-t="0.25">.25</button>
+      <button type="button" data-t="0.5">.5</button>
+      <button type="button" data-t="0.75">.75</button>
+      <button type="button" data-t="1">1</button>
+    </div>
+  </div>
+
+  <div class="lib">
+    <div class="libhead">Lucide <span>&middot; IconNode imported from the package</span></div>
+    <div class="icons" id="grid-lucide"></div>
+  </div>
+  <div class="lib">
+    <div class="libhead">Feather <span>&middot; real line/circle/rect nodes</span></div>
+    <div class="icons" id="grid-feather"></div>
+  </div>
+  <div class="lib">
+    <div class="libhead">Tabler <span>&middot; complex curve paths</span></div>
+    <div class="icons" id="grid-tabler"></div>
+  </div>
+
+  <p class="hint">
+    Tap in bursts to interrupt the spring &middot; compare <b>Polar</b> vs
+    <b>Linear</b> on <b>&rarr; &rarr; &darr;</b> &middot; the scrubber freezes the
+    pair and a tap takes off from there
+  </p>
+</div>
+<script type="module" src="./main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["bun"],
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src", "test", "tsdown.config.ts"],
+  "exclude": ["src/react", "test/react"]
+}
