@@ -8,7 +8,7 @@
    src/core/ (tests, playground, tooling). */
 
 export { allocOutputs, interpLinear, interpPolar } from "./core/interpolate";
-export { iconToCubics } from "./core/normalize";
+export { fitIcon, iconToCubics, type ViewBox } from "./core/normalize";
 export { buildPlan, type MorphPlan, type PlanItem } from "./core/plan";
 export { resampleIcon, resamplePath } from "./core/resample";
 export { cubicsToPathD, serialize } from "./core/serialize";

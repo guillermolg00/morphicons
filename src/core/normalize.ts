@@ -4,6 +4,7 @@
    circle/ellipse/rect/polyline/polygon → lines and quarter ellipses. */
 
 import { parsePath, type RawSubpath } from "./parse";
+import { cubicsToPathD } from "./serialize";
 import type { CubicPath, IconInput, IconNodeAttrs } from "./types";
 
 /** Control-point offset for a quarter circle: (4/3)·tan(π/8) ≈ 0.5523. */
@@ -304,4 +305,52 @@ export function iconToCubics(input: IconInput): CubicPath[] {
     }
   }
   return out;
+}
+
+/** A source viewBox: `24`, `"0 0 20 20"` or `[minX, minY, w, h]`. */
+export type ViewBox = number | string | readonly [number, number, number, number];
+
+function parseViewBox(vb: ViewBox): [number, number, number, number] {
+  const v =
+    typeof vb === "number"
+      ? [0, 0, vb, vb]
+      : typeof vb === "string"
+        ? vb
+            .trim()
+            .split(/[\s,]+/)
+            .map(Number)
+        : vb;
+  const [minX, minY, w, h] = v as number[];
+  if (
+    v.length !== 4 ||
+    !(w > 0) ||
+    !(h > 0) ||
+    !Number.isFinite(minX) ||
+    !Number.isFinite(minY)
+  )
+    throw new Error(`morphicons: invalid viewBox "${String(vb)}"`);
+  return [minX, minY, w, h];
+}
+
+/** Re-grids an icon drawn on `viewBox` onto the shared `grid` (24 by default),
+ *  centred and preserving aspect ratio — the SVG `xMidYMid meet` rule.
+ *
+ *  Both endpoints of a morph must live on the same coordinate space. Lucide and
+ *  Tabler already draw on 24×24; packs on 20 (Heroicons solid) or 32 (Carbon)
+ *  do not, and mixing them unfitted makes Procrustes read the scale/offset gap
+ *  as rotation. Apply once at module scope (not per render) and pass the
+ *  resulting `d` anywhere an icon is accepted. */
+export function fitIcon(input: IconInput, viewBox: ViewBox, grid = 24): string {
+  const [minX, minY, w, h] = parseViewBox(viewBox);
+  const s = Math.min(grid / w, grid / h);
+  const tx = (grid - w * s) / 2 - minX * s;
+  const ty = (grid - h * s) / 2 - minY * s;
+  const paths = iconToCubics(input);
+  for (const { pts } of paths) {
+    for (let i = 0; i < pts.length; i += 2) {
+      pts[i] = pts[i] * s + tx;
+      pts[i + 1] = pts[i + 1] * s + ty;
+    }
+  }
+  return cubicsToPathD(paths);
 }

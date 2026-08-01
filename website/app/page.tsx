@@ -8,7 +8,7 @@ const GITHUB_URL = "https://github.com/guillermolg00/morphicons";
 const DOCS_URL = `${GITHUB_URL}#readme`;
 
 const STATS: { value: string; caption: string }[] = [
-  { value: "6.3 KB", caption: "core, gzipped, everything included" },
+  { value: "6.5 KB", caption: "core, gzipped, everything included" },
   { value: "0", caption: "runtime dependencies" },
   { value: "<1 ms", caption: "to plan any morph pair" },
   { value: "1", caption: "shared rAF for every icon on screen" },
@@ -16,13 +16,13 @@ const STATS: { value: string; caption: string }[] = [
 
 const COMPAT = [
   "Lucide",
-  "Feather",
   "Tabler",
   "Heroicons outline",
   "Iconoir",
   "Akar",
   "Untitled UI",
   "Hugeicons",
+  "shadcn registry",
 ];
 
 export default function Home() {
@@ -137,7 +137,7 @@ export default function Home() {
             </div>
             <div className="mt-16 border-t border-hairline pt-8">
               <p className="text-sm font-medium text-ink">
-                Works with any stroke icon set on a shared grid.
+                Works with any stroke icon set — on any grid, via fitIcon.
               </p>
               <ul className="mt-4 flex flex-wrap gap-2">
                 {COMPAT.map((name) => (

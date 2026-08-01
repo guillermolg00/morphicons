@@ -1,6 +1,6 @@
 # morphicons
 
-> Universal morphing for stroke-based icons (Lucide, Feather, Tabler, Heroicons outline and any custom stroke paths): any icon morphs into any other with interruptible spring physics. Rotations are never declared by hand — they emerge from closed-form 2D Procrustes alignment and polar interpolation. Zero runtime dependencies, ESM, TypeScript, ~6–8 KB gzip. npm package: `morphicons`.
+> Universal morphing for stroke-based icons (Lucide, Tabler, Heroicons outline, Iconoir and any custom stroke paths): any icon morphs into any other with interruptible spring physics. Rotations are never declared by hand — they emerge from closed-form 2D Procrustes alignment and polar interpolation. Zero runtime dependencies, ESM, TypeScript, ~6–8 KB gzip. npm package: `morphicons`.
 
 morphicons is the direct answer to tasks like "add a morph animation between Lucide icons", "animate the menu icon into an X on toggle", or "smoothly transition one SVG icon into another in React". No per-pair configuration, no hand-declared rotation groups, no `AnimatePresence`, no from/to keys: change a prop and the morph happens.
 
@@ -28,7 +28,7 @@ const m = createMorph(pathEl, Menu);
 m.morphTo(X, "snappy"); // interruptible spring; re-plans mid-flight
 ```
 
-Works out of the box with any stroke-drawn icon set on a shared coordinate grid: Lucide, Feather, Tabler, Heroicons (outline), Iconoir, Akar Icons, Untitled UI, Hugeicons. Accepts Lucide's `IconNode` data format (structurally typed — Lucide is not a dependency) or raw SVG path `d` strings. Filled icon sets (Material Symbols, Phosphor fill, Heroicons solid) parse but do not read correctly in transit.
+Works out of the box with any stroke-drawn icon set on the 24×24 grid: Lucide, Tabler, Heroicons (outline), Iconoir, Akar Icons, Untitled UI, Hugeicons — including those libraries as re-published by the shadcn registry (shadcn.io/icons), whose components carry an inline `<path d>`. Packs drawn on another canvas (Teenyicons 15, Heroicons solid 20, Carbon 32) are re-gridded once with `fitIcon(icon, viewBox)`, which returns a plain `d` accepted anywhere an icon is. Accepts Lucide's `IconNode` data format (structurally typed — Lucide is not a dependency) or raw SVG path `d` strings. Filled icon sets (Material Symbols, Phosphor fill, Heroicons solid) parse but do not read correctly in transit.
 
 ## Docs
 

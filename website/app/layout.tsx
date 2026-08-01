@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 const SITE_URL = "https://www.morphicons.com";
 const TITLE = "morphicons — any icon morphs into any other";
 const DESCRIPTION =
-  "Universal morphing for stroke-based icons with spring physics. Rotations emerge from the math. Zero dependencies, ~6 KB gzip, works with Lucide, Feather, Tabler and more.";
+  "Universal morphing for stroke-based icons with spring physics. Rotations emerge from the math. Zero dependencies, ~6 KB gzip, works with Lucide, Tabler, Heroicons, Iconoir and any stroke pack.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

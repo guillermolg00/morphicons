@@ -1,18 +1,18 @@
 # morphicons
 
-Universal morphing library for stroke-based icons (Lucide, Feather, Tabler): any icon morphs into any other with spring physics and rotations that emerge from the math. **`README.md` is the source of truth** — it documents the API, the architecture and the full math pipeline with formulas.
+Universal morphing library for stroke-based icons (Lucide, Tabler, Heroicons, Iconoir; off-grid packs via `fitIcon`): any icon morphs into any other with spring physics and rotations that emerge from the math. **`README.md` is the source of truth** — it documents the API, the architecture and the full math pipeline with formulas.
 
 ## Status
 
 The library is complete: `src/core/` (pure pipeline: parse → normalize F.6 → GL8 resampling with anchored corners and intrinsic sampling for closed paths → surjective matching with greedy guards → Procrustes with λ tie-break + circular correspondence + global hybrid → polar interpolation → serialization with Z → spring), `src/dom/` (`createMorph` with morphTo/set/**seek**/progress/destroy + singleton rAF scheduler + WeakMap caches + canonical snap + reduced-motion), `src/react/` (`MorphIcon` with 3 modes + exact SSR + a11y + lucide-react drop-in), `playground/` (multi-library demo, validated by eye).
 
-- `bun test` → 74 tests / ~13,400 asserts. Performance: plan() 0.01–0.42 ms. Gzip size: core 6.32 / +dom 6.92 / +react 7.65 (gates 7 / 7.5 / 8.5).
+- `bun test` → 83 tests / ~13,450 asserts. Performance: plan() 0.01–0.42 ms. Gzip size: core 6.45 / +dom 6.88 / +react 7.61 (gates 7 / 7.5 / 8.5).
 - Not done (no date): React Native driver (possible thanks to the DOM-free core), golden screenshots in CI, publishing the package (still `private: true`; the npm name and domain **morphicons** are reserved for it).
 
 ## Commands
 
 ```bash
-bun test                   # full suite (74 tests) — always green
+bun test                   # full suite (83 tests) — always green
 bun run typecheck          # strict ×3: root (core+dom WITHOUT lib DOM), playground, react
 bunx biome check --write . # lint + format
 bun run build              # tsdown → dist/ (entries index, dom, react; shared core chunk)

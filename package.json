@@ -23,8 +23,11 @@
     "spring",
     "lucide",
     "lucide-react",
-    "feather",
     "tabler",
+    "heroicons",
+    "iconoir",
+    "shadcn",
+    "feather",
     "react",
     "icon-animation"
   ],

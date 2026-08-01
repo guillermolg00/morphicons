@@ -13,7 +13,7 @@
   <a href="https://www.morphicons.com"><strong>morphicons.com</strong></a> — live playground
 </p>
 
-Universal morphing for stroke-based icons (Lucide, Feather, Tabler, or your own paths): **any icon morphs into any other** with spring physics. Rotations are never declared by hand — they emerge from the math (2D Procrustes + polar interpolation). Zero runtime dependencies.
+Universal morphing for stroke-based icons (Lucide, Tabler, Heroicons, Iconoir, or your own paths): **any icon morphs into any other** with spring physics. Rotations are never declared by hand — they emerge from the math (2D Procrustes + polar interpolation). Zero runtime dependencies.
 
 ```tsx
 import { MorphIcon } from "morphicons/react";
@@ -86,7 +86,7 @@ interpPolar(plan, 0.5, out);                                 // t ∈ [0, 1]
 const d = serialize(out, plan.items.map(it => it.closed));   // `d` attribute
 ```
 
-Accepts `IconNode` (Lucide's data format, structurally typed — Lucide is neither a dependency nor a peer) or a raw `d` attribute. Feather, Tabler and custom paths work the same.
+Accepts `IconNode` (Lucide's data format, structurally typed — Lucide is neither a dependency nor a peer) or a raw `d` attribute. Tabler, Heroicons, Iconoir and custom paths work the same.
 
 ## Icon library compatibility
 
@@ -94,10 +94,21 @@ morphicons has no per-library adapters — any icon set that meets these require
 
 1. **Stroke-drawn icons.** The geometry must be the stroked centerline (`fill="none"`, color via `stroke`). The whole pipeline — resampling, correspondence, in-flight polylines — assumes strokes; filled or outlined-fill glyphs (Material Symbols, Bootstrap Icons, Remix Icon, Phosphor, Heroicons *solid*) parse fine but won't read correctly in transit.
 2. **Geometry available as data.** Either a raw `d` attribute per icon, or a `[tag, attrs][]` node list (Lucide's IconNode shape) using only `path`, `line`, `circle`, `ellipse`, `rect`, `polyline`, `polygon`. No `<g>` wrappers and no `transform` attributes — coordinates must be literal. Any other tag throws a clear error.
-3. **A shared coordinate space per pair.** Both endpoints of a morph must live on the same grid. Lucide, Feather and Tabler all draw on 24×24 — that's why cross-library morphs just work. The React binding defaults to `viewBox="0 0 24 24"`, overridable via props.
+3. **A shared coordinate space per pair.** Both endpoints of a morph must live on the same grid. Lucide, Tabler, Heroicons and Iconoir all draw on 24×24 — that's why cross-library morphs just work. For a pack on another canvas (Heroicons *solid* on 20, Carbon on 32, Teenyicons on 15), re-grid it once with `fitIcon`:
+
+   ```ts
+   import { fitIcon } from "morphicons";
+
+   const search = fitIcon(carbonSearch, 32);   // 32×32 → the 24 grid
+   const bell   = fitIcon(teenySmallBell, 15); // also "0 0 15 15" or [0, 0, 15, 15]
+   ```
+
+   It returns a plain `d`, so it goes anywhere an icon is accepted. Call it at module scope, not per render. Skipping it doesn't throw — Procrustes is similarity-invariant, so the grid mismatch never reads as false rotation; it lands in σ as an unwanted zoom, and the target draws outside the canvas. The React binding defaults to `viewBox="0 0 24 24"`, overridable via props.
 4. **Uniform stroke.** Cosmetic rather than structural: a consistent stroke width and round caps/joins make in-flight shapes look native. These live on the `<svg>`, not in morphicons.
 
-Beyond the three libraries in the playground, sets known to qualify: **Heroicons** (outline style, 24×24), **Iconoir** (24×24, 1.5px stroke), **Akar Icons** (24×24), **Untitled UI** (24×24) and **Hugeicons** (stroke style, 24×24). **Teenyicons** qualifies too but draws on a 15×15 grid — keep both endpoints on that grid and pass the matching `viewBox`.
+Beyond the libraries in the playground, sets known to qualify on the 24×24 grid — no fitting needed: **Heroicons** (outline style), **Iconoir** (1.5px stroke), **Akar Icons**, **Untitled UI** and **Hugeicons** (stroke style). Off-grid packs work through `fitIcon`: **Teenyicons** (15×15), **Carbon** (32×32), **Heroicons solid** (20×20).
+
+This also covers the [shadcn registry](https://www.shadcn.io/icons), which re-publishes 200+ icon libraries as React components with an inline `<path d>` — pass that `d` straight in, adding `fitIcon` when the pack's `viewBox` isn't 24.
 
 ## Architecture
 
@@ -244,7 +255,7 @@ CI budget (size-limit, gzip) as an anti-regression tripwire — gates carry ~10%
 
 | entry | measured | gate |
 |---|---|---|
-| `morphicons` (core) | 6.32 KB | 7 KB |
+| `morphicons` (core) | 6.45 KB | 7 KB |
 | `morphicons/dom` (core + driver) | 6.92 KB | 7.5 KB |
 | `morphicons/react` (all, react external) | 7.65 KB | 8.5 KB |
 
@@ -259,7 +270,7 @@ bun run play   # → http://localhost:3000
 ## Development
 
 ```bash
-bun test          # 74 tests / ~13,400 asserts
+bun test          # 83 tests / ~13,400 asserts
 bun run typecheck # strict ×3: core+dom without lib DOM, playground, react
 bun run format    # biome
 bun run build     # tsdown → dist/ (entries index, dom, react)
