@@ -2,7 +2,7 @@ import { InstallCommand } from "@/components/copy-button";
 import { LogoMark } from "@/components/logo";
 import { Studio } from "@/components/studio";
 
-const GITHUB_URL = "https://github.com/guillermolg00/morpicons";
+const GITHUB_URL = "https://github.com/guillermolg00/morphicons";
 
 const STATS: { value: string; caption: string }[] = [
   { value: "6.3 KB", caption: "core, gzipped, everything included" },

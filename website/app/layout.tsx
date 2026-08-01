@@ -88,7 +88,7 @@ const JSON_LD = {
   name: "morphicons",
   description: DESCRIPTION,
   url: SITE_URL,
-  codeRepository: "https://github.com/guillermolg00/morpicons",
+  codeRepository: "https://github.com/guillermolg00/morphicons",
   programmingLanguage: "TypeScript",
   runtimePlatform: "Web",
   license: "https://opensource.org/licenses/MIT",
