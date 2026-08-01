@@ -1,21 +1,21 @@
-# Library checks on every push/PR. The website deploys via Vercel and has its
-# own pipeline, so changes limited to website/ are ignored here.
+# Library checks on every push/PR. Runs unconditionally (no paths filter):
+# "checks" is a required status check on main, and a filtered-out run would
+# leave PRs stuck waiting for it. Actions are pinned by SHA (supply-chain
+# hygiene); Dependabot keeps the pins fresh.
 name: CI
 
 on:
   push:
     branches: [main]
-    paths-ignore: ["website/**"]
   pull_request:
-    paths-ignore: ["website/**"]
 
 jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
 
       - name: Install
         run: bun install --frozen-lockfile

@@ -1,0 +1,49 @@
+# Contributing to morphicons
+
+Thanks for your interest! Issues and pull requests are welcome.
+
+## Development setup
+
+The repo uses [Bun](https://bun.sh) for everything:
+
+```bash
+bun install
+bun test          # 74 tests / ~13,400 asserts
+bun run typecheck # strict ×3: core+dom without lib DOM, playground, react
+bun run lint      # biome
+bun run build     # tsdown → dist/
+bun run size      # gzip size gates
+bun run play      # playground → http://localhost:3000
+```
+
+All five checks run in CI and must pass before a PR can merge.
+
+## Ground rules
+
+- **The core never touches the DOM.** Pure functions consume icon data and
+  produce `d` strings. `bun run typecheck` enforces this by compiling the core
+  and dom driver without the DOM lib.
+- **Size gates are a tripwire, not a suggestion.** Gates carry ~10% headroom
+  over what's measured; if a real capability needs more, the number is
+  renegotiated in the PR — growing unnoticed is not accepted.
+- Code, comments, and docs are written in English.
+- Formatting and linting are biome's job (`bun run format`) — no style debates.
+
+## Pull requests
+
+1. Fork, create a topic branch from `main`.
+2. Keep PRs focused: one change per PR, with tests for behavior changes.
+3. Use conventional commit messages (`feat:`, `fix:`, `chore:`, `docs:` …).
+4. CI (lint, typecheck, tests, build, size) must be green; `main` only takes
+   squash merges, so the PR title becomes the commit message — write it well.
+
+## Releases
+
+Releases are automated: the maintainer bumps `version` in `package.json` on
+`main` and CI publishes to npm with provenance, tags, and creates the GitHub
+Release. Contributors never need to touch versioning or publishing.
+
+## Security issues
+
+See [SECURITY.md](SECURITY.md) — please use private vulnerability reporting,
+not public issues.

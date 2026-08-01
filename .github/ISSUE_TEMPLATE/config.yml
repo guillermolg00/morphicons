@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/guillermolg00/morphicons/security
+    about: Please report security issues privately, never as public issues.
+  - name: Live playground
+    url: https://www.morphicons.com
+    about: Try any icon pair before filing — the playground shows the detected rotation and residual.
