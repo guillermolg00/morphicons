@@ -1,4 +1,17 @@
-# morphicons
+<p align="center">
+  <a href="https://www.morphicons.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+      <img src="assets/logo-light.svg" alt="morphicons" width="96">
+    </picture>
+  </a>
+</p>
+
+<h1 align="center">morphicons</h1>
+
+<p align="center">
+  <a href="https://www.morphicons.com"><strong>morphicons.com</strong></a> — live playground
+</p>
 
 Universal morphing for stroke-based icons (Lucide, Feather, Tabler, or your own paths): **any icon morphs into any other** with spring physics. Rotations are never declared by hand — they emerge from the math (2D Procrustes + polar interpolation). Zero runtime dependencies.
 
@@ -254,3 +267,7 @@ bun run size      # size gates
 ```
 
 Icons shown in the playground belong to their authors: [Lucide](https://lucide.dev) (ISC), [Feather](https://feathericons.com) (MIT), [Tabler](https://tabler.io/icons) (MIT).
+
+---
+
+MIT © [Guillermo](https://guillermolg.com) — made by [guillermolg.com](https://guillermolg.com)
