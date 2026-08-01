@@ -1,0 +1,131 @@
+@import "tailwindcss";
+
+/* Design tokens: Vercel-inspired stark system. One accent (link blue), ink
+   CTAs, hairline borders, four-step surface ladder. Radius rule for the whole
+   page: cards 12px, controls/inputs 6px, icon tiles 8px, marketing CTA pill. */
+:root {
+  --canvas: #ffffff;
+  --canvas-soft: #fafafa;
+  --canvas-soft-2: #f5f5f5;
+  --ink: #171717;
+  --body: #4d4d4d;
+  --mute: #888888;
+  --hairline: #ebebeb;
+  --link: #0070f3;
+  --code-bg: #171717;
+  --code-fg: #ededed;
+  --code-mute: #8f8f8f;
+  --code-key: #c084fc;
+  --code-str: #4cc2b6;
+  --code-num: #f5a623;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #101010;
+    --canvas-soft: #0a0a0a;
+    --canvas-soft-2: #1a1a1a;
+    --ink: #ededed;
+    --body: #a1a1a1;
+    --mute: #7d7d7d;
+    --hairline: #262626;
+    --link: #52a8ff;
+    --code-bg: #101010;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-canvas-soft: var(--canvas-soft);
+  --color-canvas-soft-2: var(--canvas-soft-2);
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-mute: var(--mute);
+  --color-hairline: var(--hairline);
+  --color-link: var(--link);
+  --color-code-bg: var(--code-bg);
+  --color-code-fg: var(--code-fg);
+  --color-code-mute: var(--code-mute);
+  --color-code-key: var(--code-key);
+  --color-code-str: var(--code-str);
+  --color-code-num: var(--code-num);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --shadow-card:
+    0px 2px 2px rgb(0 0 0 / 0.04), 0px 8px 8px -8px rgb(0 0 0 / 0.04);
+  --shadow-card-lg:
+    0px 2px 2px rgb(0 0 0 / 0.04), 0px 8px 16px -4px rgb(0 0 0 / 0.04);
+}
+
+body {
+  background: var(--canvas-soft);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--canvas-soft);
+}
+
+/* The brand mesh gradient: the page's single decorative object, hero scale
+   only (behind the morph stage). Static on purpose; motion lives in the morphs. */
+.mesh {
+  background:
+    radial-gradient(38% 45% at 22% 28%, rgb(0 124 240 / 0.5), transparent 70%),
+    radial-gradient(35% 42% at 78% 24%, rgb(0 223 216 / 0.4), transparent 70%),
+    radial-gradient(40% 48% at 30% 78%, rgb(121 40 202 / 0.38), transparent 70%),
+    radial-gradient(36% 44% at 76% 74%, rgb(255 0 128 / 0.32), transparent 70%),
+    radial-gradient(30% 38% at 52% 50%, rgb(249 203 40 / 0.25), transparent 70%);
+  filter: blur(36px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .mesh {
+    opacity: 0.6;
+  }
+}
+
+/* Thin scrollbar for the icon grid pane. */
+.icon-pane {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline) transparent;
+}
+
+/* The t scrubber: hairline track, ink thumb, quiet until grabbed. */
+.scrub {
+  appearance: none;
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--hairline);
+  cursor: pointer;
+}
+
+.scrub:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.scrub::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid var(--canvas);
+  box-shadow: 0 0 0 1px var(--hairline);
+}
+
+.scrub::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid var(--canvas);
+  box-shadow: 0 0 0 1px var(--hairline);
+}
+
+.scrub:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 3px;
+}
