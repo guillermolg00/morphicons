@@ -57,6 +57,13 @@ export interface PlanItem {
   /** true if both endpoints are closed loops: the subpath flies with Z.
    *  Closed → open flies open: the loop opens at the chosen cut. */
   closed: boolean;
+  /** Block transport (set by the global hybrid, else null): mid-flight the
+   *  centroid rides the shared similarity around the global centroid instead
+   *  of lerping — off = c_A − g_A; drift closes c(1) = c_B exactly. */
+  block: {
+    off: readonly [number, number];
+    drift: readonly [number, number];
+  } | null;
 }
 
 export interface MorphPlan {
@@ -301,7 +308,8 @@ function applyGlobal(items: PlanItem[], n: number): void {
     ga.set(it.a, 2 * n * k);
     gb.set(it.bO, 2 * n * k);
   });
-  const g = procrustes(ga, gb, centroid(ga), centroid(gb));
+  const gca = centroid(ga);
+  const g = procrustes(ga, gb, gca, centroid(gb));
   if (g.res >= GLOBAL_EPS) return;
   const cos = Math.cos(-g.theta);
   const sin = Math.sin(-g.theta);
@@ -323,6 +331,24 @@ function applyGlobal(items: PlanItem[], n: number): void {
     it.theta = g.theta;
     it.lnSigma = Math.log(g.sigma);
     it.res = nb > 1e-12 ? Math.sqrt(e2 / nb) : 0;
+    // Block transport: every part spins with the shared θ, but lerping the
+    // centroids would send off-center parts along the chord — inside the
+    // arc — and the block would deform mid-flight (an arrow's head sags
+    // toward its shaft). The centroid rides the shared similarity around
+    // the global centroid instead; drift absorbs the (tiny) global residual
+    // so t = 1 stays exact. Same ops as the interpolator on purpose: the
+    // rotation delta cancels bit-exactly at both endpoints.
+    const s1 = Math.exp(it.lnSigma);
+    const c1 = Math.cos(it.theta) * s1;
+    const n1 = Math.sin(it.theta) * s1;
+    const ox = it.ca[0] - gca[0];
+    const oy = it.ca[1] - gca[1];
+    const rx = ox * c1 - oy * n1 - ox;
+    const ry = ox * n1 + oy * c1 - oy;
+    it.block = {
+      off: [ox, oy],
+      drift: [it.cb[0] - it.ca[0] - rx, it.cb[1] - it.ca[1] - ry],
+    };
   }
 }
 
@@ -379,6 +405,7 @@ export function buildPlan(
       lnSigma: Math.log(al.sigma),
       res: al.res,
       closed: srcSubs[si].closed && dstSubs[di].closed,
+      block: null,
     };
   });
   if (items.length > 1) applyGlobal(items, n);

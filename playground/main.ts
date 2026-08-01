@@ -10,6 +10,7 @@
 import {
   Aperture,
   ArrowDown,
+  ArrowLeft,
   ArrowRight,
   Bell,
   Camera,
@@ -65,6 +66,7 @@ const LUCIDE: Record<string, IconInput> = {
   plus: Plus,
   "arrow-right": ArrowRight,
   "arrow-down": ArrowDown,
+  "arrow-left": ArrowLeft,
   square: Square,
   circle: Circle,
   diamond: Diamond,

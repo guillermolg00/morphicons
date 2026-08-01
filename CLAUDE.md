@@ -6,13 +6,14 @@ Universal morphing library for stroke-based icons (Lucide, Tabler, Heroicons, Ic
 
 The library is complete: `src/core/` (pure pipeline: parse → normalize F.6 → GL8 resampling with anchored corners and intrinsic sampling for closed paths → surjective matching with greedy guards → Procrustes with λ tie-break + circular correspondence + global hybrid → polar interpolation → serialization with Z → spring), `src/dom/` (`createMorph` with morphTo/set/**seek**/progress/destroy + singleton rAF scheduler + WeakMap caches + canonical snap + reduced-motion), `src/react/` (`MorphIcon` with 3 modes + exact SSR + a11y + lucide-react drop-in), `playground/` (multi-library demo, validated by eye).
 
-- `bun test` → 83 tests / ~13,450 asserts. Performance: plan() 0.01–0.42 ms. Gzip size: core 6.45 / +dom 6.88 / +react 7.61 (gates 7 / 7.5 / 8.5).
-- Not done (no date): React Native driver (possible thanks to the DOM-free core), golden screenshots in CI, publishing the package (still `private: true`; the npm name and domain **morphicons** are reserved for it).
+- `bun test` → 84 tests / ~13,480 asserts. Performance: plan() 0.01–0.42 ms. Gzip size: core 6.60 / +dom 7.04 / +react 7.77 (gates 7 / 7.5 / 8.5).
+- Published on npm as **morphicons** (public, OIDC trusted publishing): bumping `version` in package.json on main IS the release trigger (publish.yml compares against the registry, publishes, tags, and then points `website/` at the new version — the site consumes the published package with an exact pin, weekly dependabot on `/website` as backstop).
+- Not done (no date): React Native driver (possible thanks to the DOM-free core), golden screenshots in CI.
 
 ## Commands
 
 ```bash
-bun test                   # full suite (83 tests) — always green
+bun test                   # full suite (84 tests) — always green
 bun run typecheck          # strict ×3: root (core+dom WITHOUT lib DOM), playground, react
 bunx biome check --write . # lint + format
 bun run build              # tsdown → dist/ (entries index, dom, react; shared core chunk)
@@ -52,7 +53,7 @@ From `test/closed.test.ts`:
 8. **Intrinsic** sampling of closed paths (anchors = corners only, not the M point): the same square with a different start point gives res ≈ 0 and θ ≈ 0.
 9. square → diamond: |θ| = 45°, σ = √½ — emergent rotation in closed paths too, via circular correspondence (N offsets × 2 directions over the closed cloud).
 10. Topology in flight: closed↔closed flies with `Z`; closed→open flies open (the loop opens at the optimal cut chosen by the circular search).
-11. Block coherence (global hybrid): if the whole icon is congruent (global res < 5e-3), all subpaths share the SAME (θ, σ) — e.g. both arrow subpaths spin the same way.
+11. Block coherence (global hybrid): if the whole icon is congruent (global res < 5e-3), all subpaths share the SAME (θ, σ) — e.g. both arrow subpaths spin the same way — **and the block is rigid mid-flight** (block transport): centroids ride the shared similarity around the global centroid instead of lerping, so cross-subpath distances hold at t = 0.25/0.5/0.75, not only at the endpoints. Non-hybrid plans keep the plain centroid lerp (`block: null`).
 
 From the driver and the binding (`test/dom.test.ts`, `test/react/morphicon.test.tsx`):
 

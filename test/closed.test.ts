@@ -119,6 +119,46 @@ describe("global hybrid (block coherence)", () => {
     const plan = buildPlan(subsOf("menu"), subsOf("x"));
     const signs = new Set(plan.items.map((it) => Math.sign(Math.round(deg(it.theta)))));
     expect(signs.size).toBe(2);
+    // no hybrid → no block transport: centroids lerp as always
+    for (const it of plan.items) expect(it.block).toBeNull();
+  });
+
+  test("block transport: the congruent block is rigid mid-flight", () => {
+    const plan = buildPlan(subsOf("arrow-right"), subsOf("arrow-down"));
+    for (const it of plan.items) expect(it.block).not.toBeNull();
+    const out = allocOutputs(plan);
+    const n = plan.n;
+    const pick = [0, n >> 1, n - 1];
+    // σ = 1 here: every shaft↔head distance must hold along the whole
+    // flight. Lerping the centroids took the chord instead of the arc and
+    // the head sagged ~1px toward the shaft at t = 0.5 — r·(1 − cos(θ/2))
+    // with r = 3.5, θ = 90°.
+    const dists = () =>
+      pick.flatMap((i) =>
+        pick.map((j) =>
+          Math.hypot(
+            out[0][2 * i] - out[1][2 * j],
+            out[0][2 * i + 1] - out[1][2 * j + 1],
+          ),
+        ),
+      );
+    interpPolar(plan, 0, out);
+    const d0 = dists();
+    for (const t of [0.25, 0.5, 0.75]) {
+      interpPolar(plan, t, out);
+      dists().forEach((d, k) => {
+        expect(Math.abs(d - d0[k])).toBeLessThan(1e-6);
+      });
+    }
+    // endpoints stay exact
+    interpPolar(plan, 0, out);
+    plan.items.forEach((it, k) => {
+      expect(maxDiff(out[k], it.a)).toBeLessThan(1e-9);
+    });
+    interpPolar(plan, 1, out);
+    plan.items.forEach((it, k) => {
+      expect(maxDiff(out[k], it.bO)).toBeLessThan(1e-9);
+    });
   });
 });
 
