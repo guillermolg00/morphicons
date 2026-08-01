@@ -1,13 +1,11 @@
 "use client";
 
 import { Pause, Play } from "lucide";
-import { buildPlan, resampleIcon, type Sampled } from "morphicons";
+import { buildPlan, resampleIcon, type Sampled, type SpringPreset } from "morphicons";
 import { createMorph, type Morph } from "morphicons/dom";
 import { MorphIcon } from "morphicons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CodePanel } from "@/components/code-panel";
 import { StaticIcon } from "@/components/static-icon";
-import type { CodegenConfig } from "@/lib/codegen";
 import { byId, dOf, type IconEntry, ICONS, type Lib } from "@/lib/icons";
 
 type Tab = "all" | Lib;
@@ -34,7 +32,6 @@ const DEFAULT_SEQ = [
 
 const SPRINGS = ["smooth", "snappy", "bouncy"] as const;
 const STROKES = [1, 1.5, 2, 2.5] as const;
-const SIZES = [16, 20, 24, 32, 48] as const;
 
 const sampleCache = new Map<string, Sampled[]>();
 function samplesOf(e: IconEntry): Sampled[] {
@@ -121,9 +118,8 @@ export function Studio() {
   const [prevId, setPrevId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("all");
   const [q, setQ] = useState("");
-  const [spring, setSpring] = useState<CodegenConfig["spring"]>("snappy");
+  const [spring, setSpring] = useState<SpringPreset>("snappy");
   const [strokeWidth, setStrokeWidth] = useState<number>(2);
-  const [size, setSize] = useState<number>(24);
   const [playing, setPlaying] = useState(true);
   const [t, setT] = useState(1);
 
@@ -222,10 +218,6 @@ export function Studio() {
   const entries = seq
     .map((id) => byId.get(id))
     .filter((e): e is IconEntry => e !== undefined);
-  const cfg = useMemo<CodegenConfig>(
-    () => ({ spring, size, strokeWidth }),
-    [spring, size, strokeWidth],
-  );
 
   return (
     <section aria-label="Morph studio" className="mx-auto w-full max-w-[1200px] px-6">
@@ -406,7 +398,7 @@ export function Studio() {
           </div>
         </div>
 
-        {/* Config: everything below feeds the generated code. */}
+        {/* Config: both knobs drive the stage — spring the morph, stroke the drawing. */}
         <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-hairline bg-canvas-soft px-6 py-4">
           <Segmented
             label="spring"
@@ -415,11 +407,8 @@ export function Studio() {
             onChange={setSpring}
           />
           <Segmented label="stroke" options={STROKES} value={strokeWidth} onChange={setStrokeWidth} />
-          <Segmented label="size" options={SIZES} value={size} onChange={setSize} />
         </div>
       </div>
-
-      <CodePanel entries={entries} cfg={cfg} className="mt-10" />
     </section>
   );
 }

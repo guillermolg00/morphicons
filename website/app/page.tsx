@@ -1,3 +1,4 @@
+import { CodePanel } from "@/components/code-panel";
 import { InstallCommand } from "@/components/copy-button";
 import { LogoMark } from "@/components/logo";
 import { Studio } from "@/components/studio";
@@ -64,6 +65,11 @@ export default function Home() {
         </section>
 
         <Studio />
+
+        {/* The code: fixed, the same snippet the README opens with. */}
+        <section className="mx-auto mt-10 w-full max-w-[1200px] px-6">
+          <CodePanel />
+        </section>
 
         {/* How it works: one paragraph of honest docs plus the numbers. */}
         <section id="how" className="mt-24 border-t border-hairline bg-canvas-soft">
