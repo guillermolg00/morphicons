@@ -13,8 +13,8 @@
     "lucide": "^1.28.0",
     "morphicons": "file:./vendor/morphicons-0.1.0.tgz",
     "next": "16.2.12",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
