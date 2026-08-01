@@ -1,9 +1,8 @@
 import { InstallCommand } from "@/components/copy-button";
-import { StaticIcon } from "@/components/static-icon";
+import { LogoMark } from "@/components/logo";
 import { Studio } from "@/components/studio";
-import { byId, type IconEntry } from "@/lib/icons";
 
-const aperture = byId.get("lucide:aperture") as IconEntry;
+const GITHUB_URL = "https://github.com/guillermolg00/morpicons";
 
 const STATS: { value: string; caption: string }[] = [
   { value: "6.3 KB", caption: "core, gzipped, everything included" },
@@ -28,15 +27,25 @@ export default function Home() {
     <div className="flex flex-1 flex-col">
       <header className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between px-6">
         <span className="flex items-center gap-2 text-[15px] font-medium text-ink">
-          <StaticIcon entry={aperture} size={20} />
+          <LogoMark size={20} />
           morphicons
         </span>
-        <a
-          href="#how"
-          className="text-sm text-body transition-colors hover:text-ink"
-        >
-          How it works
-        </a>
+        <nav className="flex items-center gap-6">
+          <a
+            href="#how"
+            className="text-sm text-body transition-colors hover:text-ink"
+          >
+            How it works
+          </a>
+          <a
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-body transition-colors hover:text-ink"
+          >
+            GitHub
+          </a>
+        </nav>
       </header>
 
       <main className="flex flex-1 flex-col">
@@ -117,9 +126,30 @@ export default function Home() {
 
       <footer className="border-t border-hairline">
         <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-between gap-3 px-6 py-10 text-sm text-body">
-          <span>morphicons, MIT license.</span>
+          <span className="flex items-center gap-2">
+            <LogoMark size={16} className="text-ink" />
+            morphicons, MIT license.
+          </span>
           <span>
             Demo icons belong to their authors: Lucide (ISC), Feather (MIT), Tabler (MIT).
+          </span>
+          <span className="flex items-center gap-4">
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-ink"
+            >
+              GitHub
+            </a>
+            <a
+              href="https://guillermolg.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-ink"
+            >
+              Made by guillermolg.com
+            </a>
           </span>
         </div>
       </footer>
