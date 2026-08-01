@@ -1,10 +1,32 @@
 {
   "name": "morphicons",
   "version": "0.1.0",
-  "private": true,
   "description": "Universal morphing for stroke-based icons with spring physics — zero runtime dependencies",
+  "license": "MIT",
+  "author": "Guillermo (https://guillermolg.com)",
+  "homepage": "https://www.morphicons.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guillermolg00/morphicons.git"
+  },
+  "bugs": "https://github.com/guillermolg00/morphicons/issues",
+  "keywords": [
+    "icons",
+    "svg",
+    "morphing",
+    "animation",
+    "spring",
+    "lucide",
+    "feather",
+    "tabler",
+    "react",
+    "icon-animation"
+  ],
   "type": "module",
   "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -37,7 +59,8 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "build": "tsdown",
-    "size": "size-limit"
+    "size": "size-limit",
+    "prepublishOnly": "bun run build"
   },
   "size-limit": [
     {

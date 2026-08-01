@@ -33,7 +33,7 @@ The usual icon morphs either interpolate raw coordinates (shapes shrink and shea
 ## Install
 
 ```bash
-bun add morphicons        # or npm/pnpm (package still private, not yet published)
+bun add morphicons        # or npm install / pnpm add
 ```
 
 ESM only. `react` is an optional peer (>= 18) — only needed for `morphicons/react`.

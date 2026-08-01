@@ -1,0 +1,80 @@
+# Publishes to npm whenever the version in package.json changes on main.
+#
+# How it decides: compares the local version against the npm registry — if
+# that exact version is already published, the run is a green no-op. No tag
+# or changelog bookkeeping needed to trigger; bumping "version" is the switch.
+#
+# Auth: npm Trusted Publishing (OIDC) — no long-lived token stored in GitHub.
+# One-time setup on npmjs.com (package Settings → Trusted publisher):
+#   repository guillermolg00/morphicons, workflow publish.yml.
+# Note: npm only allows configuring a trusted publisher for an EXISTING
+# package, so the very first publish is done manually (npm login && npm
+# publish). Every publish after that is automatic.
+name: Publish
+
+on:
+  push:
+    branches: [main]
+    paths: ["package.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # push the version tag + create the GitHub Release
+  id-token: write # npm OIDC (trusted publishing + provenance)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: github.repository == 'guillermolg00/morphicons'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # Trusted publishing requires npm >= 11.5.1.
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Is this version already on npm?
+        id: version
+        run: |
+          LOCAL=$(node -p "require('./package.json').version")
+          PUBLISHED=$(npm view "morphicons@$LOCAL" version 2>/dev/null || true)
+          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
+          if [ "$PUBLISHED" = "$LOCAL" ]; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "morphicons@$LOCAL is already published — nothing to do."
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+            echo "morphicons@$LOCAL is not on the registry — publishing."
+          fi
+
+      - name: Install
+        if: steps.version.outputs.new == 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck + test
+        if: steps.version.outputs.new == 'true'
+        run: bun run typecheck && bun test
+
+      - name: Build + size gates
+        if: steps.version.outputs.new == 'true'
+        run: bun run build && bun run size
+
+      - name: Publish to npm (with provenance)
+        if: steps.version.outputs.new == 'true'
+        run: npm publish --provenance
+
+      - name: Tag + GitHub Release
+        if: steps.version.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.version.outputs.local }}" \
+            --target "$GITHUB_SHA" \
+            --title "v${{ steps.version.outputs.local }}" \
+            --generate-notes

@@ -1,0 +1,36 @@
+# Library checks on every push/PR. The website deploys via Vercel and has its
+# own pipeline, so changes limited to website/ are ignored here.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["website/**"]
+  pull_request:
+    paths-ignore: ["website/**"]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Lint (biome)
+        run: bun run lint
+
+      - name: Typecheck (strict ×3)
+        run: bun run typecheck
+
+      - name: Test
+        run: bun test
+
+      - name: Build
+        run: bun run build
+
+      - name: Size gates
+        run: bun run size
