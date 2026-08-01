@@ -19,6 +19,19 @@ const TABS: { v: Tab; label: string }[] = [
   { v: "tabler", label: "Tabler" },
 ];
 
+/* The set the page loads with, autoplaying: simple strokes first, the
+   emergent rotations (arrows), then the closed shapes (heart → star). */
+const DEFAULT_SEQ = [
+  "lucide:x",
+  "lucide:plus",
+  "lucide:arrow-right",
+  "lucide:arrow-down",
+  "lucide:check",
+  "lucide:chevron-down",
+  "lucide:heart",
+  "lucide:star",
+];
+
 const SPRINGS = ["smooth", "snappy", "bouncy"] as const;
 const STROKES = [1, 1.5, 2, 2.5] as const;
 const SIZES = [16, 20, 24, 32, 48] as const;
@@ -103,15 +116,15 @@ function Segmented<T extends string | number>({
 }
 
 export function Studio() {
-  const [seq, setSeq] = useState<string[]>(["lucide:menu", "lucide:x", "lucide:check"]);
-  const [curId, setCurId] = useState("lucide:menu");
+  const [seq, setSeq] = useState<string[]>(DEFAULT_SEQ);
+  const [curId, setCurId] = useState(DEFAULT_SEQ[0]);
   const [prevId, setPrevId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("all");
   const [q, setQ] = useState("");
   const [spring, setSpring] = useState<CodegenConfig["spring"]>("snappy");
   const [strokeWidth, setStrokeWidth] = useState<number>(2);
   const [size, setSize] = useState<number>(24);
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState(true);
   const [t, setT] = useState(1);
 
   const cur = byId.get(curId) ?? ICONS[0];
