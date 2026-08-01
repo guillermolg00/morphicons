@@ -78,3 +78,29 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "v${{ steps.version.outputs.local }}" \
             --generate-notes
+
+      # The website consumes the published npm package (exact pin in
+      # website/package.json). Point it at the fresh release so the
+      # playground at morphicons.com never lags behind npm again. The
+      # paths filter above only watches the ROOT package.json and pushes
+      # made with GITHUB_TOKEN don't trigger workflows — no retrigger loop.
+      # If this step ever fails, weekly dependabot on /website is the
+      # backstop.
+      - name: Point the website at the new version
+        if: steps.version.outputs.new == 'true'
+        run: |
+          V="${{ steps.version.outputs.local }}"
+          # registry propagation: wait until the fresh version resolves
+          for i in $(seq 1 24); do
+            npm view "morphicons@$V" version >/dev/null 2>&1 && break
+            sleep 5
+          done
+          cd website
+          bun add --exact "morphicons@$V"
+          cd ..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add website/package.json website/bun.lock
+          git commit -m "chore(website): morphicons $V"
+          git pull --rebase origin main
+          git push
