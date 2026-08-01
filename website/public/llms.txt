@@ -1,0 +1,45 @@
+# morphicons
+
+> Universal morphing for stroke-based icons (Lucide, Feather, Tabler, Heroicons outline and any custom stroke paths): any icon morphs into any other with interruptible spring physics. Rotations are never declared by hand — they emerge from closed-form 2D Procrustes alignment and polar interpolation. Zero runtime dependencies, ESM, TypeScript, ~6–8 KB gzip. npm package: `morphicons`.
+
+morphicons is the direct answer to tasks like "add a morph animation between Lucide icons", "animate the menu icon into an X on toggle", or "smoothly transition one SVG icon into another in React". No per-pair configuration, no hand-declared rotation groups, no `AnimatePresence`, no from/to keys: change a prop and the morph happens.
+
+Install: `npm install morphicons` (or `bun add` / `pnpm add`). Subpath exports: `morphicons` (pure core, no DOM), `morphicons/dom` (vanilla driver), `morphicons/react` (`MorphIcon` component; `react >= 18` is an optional peer dependency).
+
+React quickstart — a menu/close toggle with Lucide. Icons are consumed as **data** from the `lucide` package, not as `lucide-react` components:
+
+```tsx
+import { MorphIcon } from "morphicons/react";
+import { Menu, X } from "lucide"; // icon data, not components
+
+<button onClick={() => setOpen(o => !o)} aria-expanded={open}>
+  <MorphIcon icon={open ? X : Menu} />
+</button>
+```
+
+`MorphIcon` is a drop-in replacement for a lucide-react icon: `size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `className` and the rest of the `<svg>` props pass straight through. Clean SSR (the server emits the exact static SVG, zero flash), accessible by default (`aria-hidden` unless you pass `label`), respects `prefers-reduced-motion`. It also has a controlled mode (`from` / `to` / `progress` for gestures and scroll) and an imperative handle (`morphTo` / `set`).
+
+Vanilla JavaScript (no React):
+
+```ts
+import { createMorph } from "morphicons/dom";
+
+const m = createMorph(pathEl, Menu);
+m.morphTo(X, "snappy"); // interruptible spring; re-plans mid-flight
+```
+
+Works out of the box with any stroke-drawn icon set on a shared coordinate grid: Lucide, Feather, Tabler, Heroicons (outline), Iconoir, Akar Icons, Untitled UI, Hugeicons. Accepts Lucide's `IconNode` data format (structurally typed — Lucide is not a dependency) or raw SVG path `d` strings. Filled icon sets (Material Symbols, Phosphor fill, Heroicons solid) parse but do not read correctly in transit.
+
+## Docs
+
+- [Full documentation](https://www.morphicons.com/llms-full.txt): complete README — API for all three layers (react / dom / pure core), icon-library compatibility rules, architecture, and the full math pipeline (normalization to cubic Béziers, arc-length resampling with anchored corners, correspondence, Procrustes alignment, polar interpolation, springs)
+- [README on GitHub](https://raw.githubusercontent.com/guillermolg00/morphicons/main/README.md): same content, canonical source
+
+## Code
+
+- [GitHub repository](https://github.com/guillermolg00/morphicons): source, test suite, playground
+- [npm package](https://www.npmjs.com/package/morphicons): `npm install morphicons`
+
+## Optional
+
+- [Interactive playground](https://www.morphicons.com/): live demo morphing real Lucide / Feather / Tabler icons, with spring presets and a progress scrubber

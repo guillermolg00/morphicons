@@ -27,9 +27,12 @@ export const metadata: Metadata = {
   keywords: [
     "icon morphing",
     "svg morph",
+    "morph animation",
     "animated icons",
     "icon animation",
     "lucide",
+    "lucide-react",
+    "animate lucide icons",
     "feather icons",
     "tabler icons",
     "spring physics",

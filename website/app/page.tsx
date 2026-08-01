@@ -142,6 +142,9 @@ export default function Home() {
             >
               GitHub
             </a>
+            <a href="/llms.txt" className="transition-colors hover:text-ink">
+              llms.txt
+            </a>
             <a
               href="https://guillermolg.com"
               target="_blank"
