@@ -42,4 +42,4 @@ Works out of the box with any stroke-drawn icon set on the 24×24 grid: Lucide, 
 
 ## Optional
 
-- [Interactive playground](https://www.morphicons.com/): live demo morphing real Lucide / Feather / Tabler icons, with spring presets and a progress scrubber
+- [Interactive playground](https://www.morphicons.com/): live demo morphing real Lucide / Heroicons / Tabler icons, with spring presets and a progress scrubber

@@ -13,7 +13,7 @@ type Tab = "all" | Lib;
 const TABS: { v: Tab; label: string }[] = [
   { v: "all", label: "All" },
   { v: "lucide", label: "Lucide" },
-  { v: "feather", label: "Feather" },
+  { v: "heroicons", label: "Heroicons" },
   { v: "tabler", label: "Tabler" },
 ];
 

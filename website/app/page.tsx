@@ -161,7 +161,7 @@ export default function Home() {
             morphicons, MIT license.
           </span>
           <span>
-            Demo icons belong to their authors: Lucide (ISC), Feather (MIT), Tabler (MIT).
+            Demo icons belong to their authors: Lucide (ISC), Heroicons (MIT), Tabler (MIT).
           </span>
           <span className="flex items-center gap-4">
             <a
