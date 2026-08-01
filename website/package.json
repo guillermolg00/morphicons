@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "lucide": "^1.28.0",
     "morphicons": "file:./vendor/morphicons-0.1.0.tgz",
     "next": "16.2.12",
