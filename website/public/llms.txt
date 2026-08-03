@@ -2,9 +2,9 @@
 
 > Universal morphing for stroke-based icons (Lucide, Tabler, Heroicons outline, Iconoir and any custom stroke paths): any icon morphs into any other with interruptible spring physics. Rotations are never declared by hand — they emerge from closed-form 2D Procrustes alignment and polar interpolation. Zero runtime dependencies, ESM, TypeScript, ~6–8 KB gzip. npm package: `morphicons`.
 
-morphicons is the direct answer to tasks like "add a morph animation between Lucide icons", "animate the menu icon into an X on toggle", or "smoothly transition one SVG icon into another in React". No per-pair configuration, no hand-declared rotation groups, no `AnimatePresence`, no from/to keys: change a prop and the morph happens.
+morphicons is the direct answer to tasks like "add a morph animation between Lucide icons", "animate the menu icon into an X on toggle", or "smoothly transition one SVG icon into another in React or Vue". No per-pair configuration, no hand-declared rotation groups, no `AnimatePresence`, no from/to keys: change a prop and the morph happens.
 
-Install: `npm install morphicons` (or `bun add` / `pnpm add`). Subpath exports: `morphicons` (pure core, no DOM), `morphicons/dom` (vanilla driver), `morphicons/react` (`MorphIcon` component; `react >= 18` is an optional peer dependency).
+Install: `npm install morphicons` (or `bun add` / `pnpm add`). Subpath exports: `morphicons` (pure core, no DOM), `morphicons/dom` (vanilla driver), `morphicons/react` (`MorphIcon` component; `react >= 18` is an optional peer dependency), `morphicons/vue` (`MorphIcon` for Vue 3; `vue >= 3.3` is an optional peer dependency).
 
 React quickstart — a menu/close toggle with Lucide. Icons are consumed as **data** from the `lucide` package, not as `lucide-react` components:
 
@@ -19,7 +19,27 @@ import { Menu, X } from "lucide"; // icon data, not components
 
 `MorphIcon` is a drop-in replacement for a lucide-react icon: `size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `className` and the rest of the `<svg>` props pass straight through. Clean SSR (the server emits the exact static SVG, zero flash), accessible by default (`aria-hidden` unless you pass `label`), respects `prefers-reduced-motion`. It also has a controlled mode (`from` / `to` / `progress` for gestures and scroll) and an imperative handle (`morphTo` / `set`).
 
-Vanilla JavaScript (no React):
+Vue 3 quickstart — the same component with the same three modes, and it works with Nuxt out of the box (the server emits the exact static SVG, the runtime is born on hydration):
+
+```vue
+<script setup lang="ts">
+import { ref } from "vue";
+import { MorphIcon } from "morphicons/vue";
+import { Menu, X } from "lucide"; // data, not components
+
+const open = ref(false);
+</script>
+
+<template>
+  <button @click="open = !open" :aria-expanded="open">
+    <MorphIcon :icon="open ? X : Menu" />
+  </button>
+</template>
+```
+
+The Vue binding is a plain render function — no SFC compiler or JSX involved — with the same presentation props, the same accessibility defaults and the same controlled (`:from` / `:to` / `:progress`) and imperative (template ref → `morphTo` / `set`) modes as the React one.
+
+Vanilla JavaScript (no React or Vue):
 
 ```ts
 import { createMorph } from "morphicons/dom";
@@ -32,7 +52,7 @@ Works out of the box with any stroke-drawn icon set on the 24×24 grid: Lucide, 
 
 ## Docs
 
-- [Full documentation](https://www.morphicons.com/llms-full.txt): complete README — API for all three layers (react / dom / pure core), icon-library compatibility rules, architecture, and the full math pipeline (normalization to cubic Béziers, arc-length resampling with anchored corners, correspondence, Procrustes alignment, polar interpolation, springs)
+- [Full documentation](https://www.morphicons.com/llms-full.txt): complete README — API for all four layers (react / vue / dom / pure core), icon-library compatibility rules, architecture, and the full math pipeline (normalization to cubic Béziers, arc-length resampling with anchored corners, correspondence, Procrustes alignment, polar interpolation, springs)
 - [README on GitHub](https://raw.githubusercontent.com/guillermolg00/morphicons/main/README.md): same content, canonical source
 
 ## Code
