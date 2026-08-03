@@ -32,12 +32,14 @@ export default function Home() {
       <main className="flex flex-1 flex-col">
         {/* Hero: copy on top, the studio is the asset. */}
         <section className="mx-auto w-full max-w-[720px] px-6 pb-12 pt-16 text-center sm:pt-20">
-          <h1 className="text-4xl font-semibold leading-[1.05] tracking-[-0.045em] text-ink sm:text-5xl">
-            Any icon morphs into any other.
+          {/* text-balance: the longer keyword-carrying headline otherwise
+              drops a one-word orphan onto its last line. */}
+          <h1 className="text-balance text-4xl font-semibold leading-[1.05] tracking-[-0.045em] text-ink sm:text-5xl">
+            Morph any SVG icon into any other.
           </h1>
-          <p className="mx-auto mt-5 max-w-[560px] text-lg leading-7 text-body">
-            Optimal rotation solved in closed form, spring physics, and zero dependencies.
-            Your icon library already works.
+          <p className="mx-auto mt-5 max-w-[560px] text-pretty text-lg leading-7 text-body">
+            Animate Lucide, Tabler, Heroicons or any stroke icon set. Optimal rotation
+            solved in closed form, spring physics, zero dependencies.
           </p>
           <div className="mt-8">
             <InstallCommand />
@@ -64,8 +66,8 @@ export default function Home() {
                   (2D Procrustes): if a pair is congruent under rotation, it rotates; if not,
                   it morphs in the aligned frame. Nobody declares rotation groups by hand.
                   Springs are interruptible, corners stay sharp at rest, and the core never
-                  touches the DOM, so React, Next.js and plain JavaScript are all first-class
-                  drivers.
+                  touches the DOM, so React, Vue, Next.js and plain JavaScript are all
+                  first-class drivers.
                 </p>
                 <p className="mt-4 max-w-[60ch] leading-relaxed text-body">
                   Icons are consumed as data, not components: a{" "}

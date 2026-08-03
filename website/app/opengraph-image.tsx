@@ -3,7 +3,7 @@ import path from "node:path";
 import { ImageResponse } from "next/og";
 import { LOGO_PATH_D, LOGO_VIEWBOX } from "@/lib/brand";
 
-export const alt = "morphicons — any icon morphs into any other";
+export const alt = "morphicons — morph any SVG icon into any other";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -66,7 +66,7 @@ export default async function OpengraphImage() {
           lineHeight: 1.3,
         }}
       >
-        Any icon morphs into any other.
+        Morph any SVG icon into any other.
       </div>
       <div
         style={{
