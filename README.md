@@ -316,19 +316,6 @@ bun run size      # size gates
 
 Icons shown in the playground belong to their authors: [Lucide](https://lucide.dev) (ISC), [Feather](https://feathericons.com) (MIT), [Tabler](https://tabler.io/icons) (MIT).
 
-## Star history
-
-<p align="center">
-  <a href="https://github.com/guillermolg00/morphicons/stargazers">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="assets/star-history-dark.svg">
-      <img alt="Star history of morphicons" src="assets/star-history-light.svg" width="760">
-    </picture>
-  </a>
-</p>
-
-Rendered from the repo's own stargazer data — regenerate with `bun run stars`. Self-hosted on purpose: the third-party chart services rate-limit their shared GitHub tokens and answer 503, and GitHub's image proxy caches that failure, so the README ends up showing a broken image.
-
 ---
 
 MIT © [Guillermo](https://guillermolg.com) — made by [guillermolg.com](https://guillermolg.com)

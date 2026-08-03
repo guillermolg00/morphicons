@@ -79,7 +79,6 @@
     "format": "biome check --write .",
     "build": "tsdown",
     "size": "size-limit",
-    "stars": "bun scripts/star-history.mjs",
     "prepublishOnly": "bun run build"
   },
   "size-limit": [
