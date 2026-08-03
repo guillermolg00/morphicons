@@ -11,7 +11,7 @@
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
     "lucide": "^1.28.0",
-    "morphicons": "1.1.1",
+    "morphicons": "1.2.0",
     "next": "16.2.12",
     "react": "19.2.8",
     "react-dom": "19.2.8"

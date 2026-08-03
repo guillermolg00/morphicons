@@ -84,10 +84,16 @@ jobs:
       # playground at morphicons.com never lags behind npm again. The
       # paths filter above only watches the ROOT package.json and pushes
       # made with GITHUB_TOKEN don't trigger workflows — no retrigger loop.
-      # If this step ever fails, weekly dependabot on /website is the
-      # backstop.
+      #
+      # This pushes straight to main, which the "protect-main" ruleset would
+      # otherwise reject (it requires a PR + the "checks" status check). The
+      # GitHub Actions app is therefore a bypass actor on that ruleset — the
+      # v1.2.0 release failed here before that was granted. Never gates the
+      # release: the package is already on npm by this point, so the step is
+      # continue-on-error and weekly dependabot on /website is the backstop.
       - name: Point the website at the new version
         if: steps.version.outputs.new == 'true'
+        continue-on-error: true
         run: |
           V="${{ steps.version.outputs.local }}"
           # registry propagation: wait until the fresh version resolves
