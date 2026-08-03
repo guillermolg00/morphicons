@@ -16,10 +16,13 @@ updates:
         patterns: ["*"]
         update-types: ["minor", "patch"]
 
+  # Daily, not weekly: this is what points the website at a fresh morphicons
+  # release now that publish.yml no longer bumps the pin itself (see the note
+  # at the end of that workflow). Keeps the site at most a day behind npm.
   - package-ecosystem: "bun"
     directory: "/website"
     schedule:
-      interval: "weekly"
+      interval: "daily"
     groups:
       minor-and-patch:
         patterns: ["*"]

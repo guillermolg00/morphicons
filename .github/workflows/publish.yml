@@ -79,28 +79,20 @@ jobs:
             --title "v${{ steps.version.outputs.local }}" \
             --generate-notes
 
+      # NOTE — the website's version pin is NOT bumped here.
+      #
       # The website consumes the published npm package (exact pin in
-      # website/package.json). Point it at the fresh release so the
-      # playground at morphicons.com never lags behind npm again. The
-      # paths filter above only watches the ROOT package.json and pushes
-      # made with GITHUB_TOKEN don't trigger workflows — no retrigger loop.
-      # If this step ever fails, weekly dependabot on /website is the
-      # backstop.
-      - name: Point the website at the new version
-        if: steps.version.outputs.new == 'true'
-        run: |
-          V="${{ steps.version.outputs.local }}"
-          # registry propagation: wait until the fresh version resolves
-          for i in $(seq 1 24); do
-            npm view "morphicons@$V" version >/dev/null 2>&1 && break
-            sleep 5
-          done
-          cd website
-          bun add --exact "morphicons@$V"
-          cd ..
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add website/package.json website/bun.lock
-          git commit -m "chore(website): morphicons $V"
-          git pull --rebase origin main
-          git push
+      # website/package.json). This job used to bump that pin and push it
+      # straight to main, but the "protect-main" ruleset rejects any push
+      # without a PR + the "checks" status check, so the v1.2.0 release
+      # ended red with GH013 while the package itself was already on npm.
+      # Granting the GitHub Actions app a bypass is not an option either:
+      # rulesets only accept an Integration that belongs to the owner
+      # ORGANIZATION, and this is a personal repo (422 "Actor GitHub
+      # Actions integration must be part of the ruleset source or owner
+      # organization").
+      #
+      # So the bump is left to dependabot, which watches /website daily and
+      # opens a normal PR — its PRs do trigger CI, unlike anything pushed
+      # with GITHUB_TOKEN. The site trails npm by at most a day, and no
+      # long-lived secret or weakened branch protection is needed.
