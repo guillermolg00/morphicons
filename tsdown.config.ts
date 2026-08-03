@@ -5,6 +5,7 @@ export default defineConfig({
     index: "src/index.ts",
     dom: "src/dom/index.ts",
     react: "src/react/index.tsx",
+    vue: "src/vue/index.ts",
   },
   format: "esm",
   platform: "neutral",

@@ -4,20 +4,20 @@ Universal morphing library for stroke-based icons (Lucide, Tabler, Heroicons, Ic
 
 ## Status
 
-The library is complete: `src/core/` (pure pipeline: parse → normalize F.6 → GL8 resampling with anchored corners and intrinsic sampling for closed paths → surjective matching with greedy guards → Procrustes with λ tie-break + circular correspondence + global hybrid → polar interpolation → serialization with Z → spring), `src/dom/` (`createMorph` with morphTo/set/**seek**/progress/destroy + singleton rAF scheduler + WeakMap caches + canonical snap + reduced-motion), `src/react/` (`MorphIcon` with 3 modes + exact SSR + a11y + lucide-react drop-in), `playground/` (multi-library demo, validated by eye).
+The library is complete: `src/core/` (pure pipeline: parse → normalize F.6 → GL8 resampling with anchored corners and intrinsic sampling for closed paths → surjective matching with greedy guards → Procrustes with λ tie-break + circular correspondence + global hybrid → polar interpolation → serialization with Z → spring), `src/dom/` (`createMorph` with morphTo/set/**seek**/progress/destroy + singleton rAF scheduler + WeakMap caches + canonical snap + reduced-motion), `src/react/` (`MorphIcon` with 3 modes + exact SSR + a11y + lucide-react drop-in), `src/vue/` (`MorphIcon` for Vue 3: same 3 modes + exact SSR + a11y; plain render function with `h` — no SFC, no JSX, no Vue compiler), `playground/` (multi-library demo, validated by eye).
 
-- `bun test` → 84 tests / ~13,480 asserts. Performance: plan() 0.01–0.42 ms. Gzip size: core 6.60 / +dom 7.04 / +react 7.77 (gates 7 / 7.5 / 8.5).
+- `bun test` → 92 tests / ~13,509 asserts. Performance: plan() 0.01–0.42 ms. Gzip size: core 6.60 / +dom 7.04 / +react 7.77 / +vue 7.81 (gates 7 / 7.5 / 8.5 / 8.5).
 - Published on npm as **morphicons** (public, OIDC trusted publishing): bumping `version` in package.json on main IS the release trigger (publish.yml compares against the registry, publishes, tags, and then points `website/` at the new version — the site consumes the published package with an exact pin, weekly dependabot on `/website` as backstop).
 - Not done (no date): React Native driver (possible thanks to the DOM-free core), golden screenshots in CI.
 
 ## Commands
 
 ```bash
-bun test                   # full suite (84 tests) — always green
-bun run typecheck          # strict ×3: root (core+dom WITHOUT lib DOM), playground, react
+bun test                   # full suite (92 tests) — always green
+bun run typecheck          # strict ×4: root (core+dom WITHOUT lib DOM), playground, react, vue
 bunx biome check --write . # lint + format
-bun run build              # tsdown → dist/ (entries index, dom, react; shared core chunk)
-bun run size               # size gates (7 / 7.5 / 8.5 KB gzip)
+bun run build              # tsdown → dist/ (entries index, dom, react, vue; shared core chunk)
+bun run size               # size gates (7 / 7.5 / 8.5 / 8.5 KB gzip)
 bun run play               # playground → http://localhost:3000 (HMR)
 node spike/test.js         # original spike spec → ALL OK
 bun playground/extract-vendor-icons.mjs  # regenerate vendored Feather/Tabler icons
@@ -25,9 +25,9 @@ bun playground/extract-vendor-icons.mjs  # regenerate vendored Feather/Tabler ic
 
 ## Hard rules (non-negotiable)
 
-- **Zero runtime dependencies**. None. devDeps yes; `react` is an **optional** peer (>= 18), only for `./react`.
-- **The core never touches the DOM**: pure functions consume icon data and produce `d` strings and numbers. DOM only in `src/dom` (via ambient declares — compiles without `lib: DOM`); React only in `src/react`. The **root** tsconfig deliberately omits `lib: DOM` and excludes `src/react` + `test/react`; the playground/react/build tsconfigs add DOM and jsx where needed. `tsconfig.build.json` exists ONLY so tsdown can emit types — the separation is enforced by `bun run typecheck`.
-- ESM only, TypeScript strict, `sideEffects: false`, subpath exports (`.`, `./dom`, `./react`).
+- **Zero runtime dependencies**. None. devDeps yes; `react` (>= 18) and `vue` (>= 3.3) are **optional** peers, only for `./react` and `./vue`.
+- **The core never touches the DOM**: pure functions consume icon data and produce `d` strings and numbers. DOM only in `src/dom` (via ambient declares — compiles without `lib: DOM`); React only in `src/react`; Vue only in `src/vue`. The **root** tsconfig deliberately omits `lib: DOM` and excludes `src/react` + `test/react` + `src/vue` + `test/vue`; the playground/react/vue/build tsconfigs add DOM (and jsx where needed). `tsconfig.build.json` exists ONLY so tsdown can emit types — the separation is enforced by `bun run typecheck`.
+- ESM only, TypeScript strict, `sideEffects: false`, subpath exports (`.`, `./dom`, `./react`, `./vue`).
 - Size budget: **anti-regression tripwire, not a straitjacket** — gates carry ~10% headroom over what's measured. If a real capability needs more, the number is renegotiated; growing unnoticed is what's not accepted.
 - Accepts `IconNode = [tag, attrs][]` (Lucide's data format) structurally typed — Lucide is **not** a dependency, not even a peer. `IconNodeAttrs` admits `undefined` on purpose (lucide's SVGProps includes it; the runtime treats it as an absent attr).
 - The driver's `PathEl` is structural (`{ setAttribute }`): dom tests use a fake and a rAF injected into globalThis — no jsdom. Keep it that way.
@@ -55,13 +55,13 @@ From `test/closed.test.ts`:
 10. Topology in flight: closed↔closed flies with `Z`; closed→open flies open (the loop opens at the optimal cut chosen by the circular search).
 11. Block coherence (global hybrid): if the whole icon is congruent (global res < 5e-3), all subpaths share the SAME (θ, σ) — e.g. both arrow subpaths spin the same way — **and the block is rigid mid-flight** (block transport): centroids ride the shared similarity around the global centroid instead of lerping, so cross-subpath distances hold at t = 0.25/0.5/0.75, not only at the endpoints. Non-hybrid plans keep the plain centroid lerp (`block: null`).
 
-From the driver and the binding (`test/dom.test.ts`, `test/react/morphicon.test.tsx`):
+From the driver and the bindings (`test/dom.test.ts`, `test/react/morphicon.test.tsx`, `test/vue/morphicon.test.ts`):
 
 12. Canonical snap at rest: input string **verbatim**; IconNode → `cubicsToPathD`. In flight, M/L polylines (+Z) with never a NaN.
 13. Exact interruption: after a mid-flight `morphTo`, a frame with dt = 0 paints the **identical** intermediate shape (the snapshot is the plan's source).
 14. `seek` is deterministic, does not start the scheduler, and a later `morphTo` takes off from the frozen shape. `progress =` equals seek on the active target.
 15. Singleton scheduler: N flying instances share ONE rAF; when all settle, it stops (zero live timers).
-16. SSR: `MorphIcon`'s initial `d` is computed once with the pure core and React never rewrites it; `label` → `role="img"` + `<title>`, no label → `aria-hidden`.
+16. SSR: `MorphIcon`'s initial `d` is computed once with the pure core and the framework (React/Vue) never rewrites it; `label` → `role="img"` + `<title>`, no label → `aria-hidden`. Pinned for both bindings — the Vue suite mirrors the React one.
 
 ## Working method
 
@@ -76,7 +76,8 @@ src/index.ts core consumer surface (what the 7 KB gate measures); introspection
              KAPPA, rotatePts…) are imported from src/core/* directly
 src/dom/     createMorph + singleton rAF scheduler + canonicalD (ambient declares, no lib DOM)
 src/react/   MorphIcon (uncontrolled / controlled / imperative) + MorphHandle + SSR
-test/        Bun suite — invariants (1–7), closed (8–11), dom (12–15), react/ (16), unit tests
+src/vue/     MorphIcon for Vue 3 (same 3 modes) + MorphHandle + SSR — render function, no SFC/JSX
+test/        Bun suite — invariants (1–7), closed (8–11), dom (12–15), react/ + vue/ (16), unit tests
 spike/       core.js + test.js from the original spike (historical reference; don't
              delete without asking)
 playground/  real demo: index.html + main.ts (driver + core), vendor-icons.ts (GENERATED),

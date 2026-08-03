@@ -36,7 +36,7 @@ The usual icon morphs either interpolate raw coordinates (shapes shrink and shea
 bun add morphicons        # or npm install / pnpm add
 ```
 
-ESM only. `react` is an optional peer (>= 18) — only needed for `morphicons/react`.
+ESM only. `react` (>= 18) and `vue` (>= 3.3) are optional peers — only needed for `morphicons/react` and `morphicons/vue`.
 
 ## Usage
 
@@ -59,6 +59,34 @@ ref.current?.set(X);         // jumps without animating
 ```
 
 Drop-in replacement for lucide-react: `size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `className` and the rest of the `<svg>` props pass straight through. Correct accessibility by default: `aria-hidden` unless you pass `label` (→ `role="img"` + `<title>`). Clean SSR: the server emits the exact static SVG (zero flash, zero layout shift); the runtime is born on hydration. `prefers-reduced-motion` degrades to an instant swap.
+
+### Vue — same three modes
+
+```vue
+<script setup lang="ts">
+import { ref } from "vue";
+import { MorphIcon, type MorphHandle } from "morphicons/vue";
+import { Menu, X, Check } from "lucide"; // data, not components
+
+const open = ref(false);
+const morph = ref<MorphHandle | null>(null);
+// morph.value?.morphTo(Check)  → animates
+// morph.value?.set(X)          → jumps without animating
+</script>
+
+<template>
+  <!-- 1. Uncontrolled (90% of uses): change the prop and morphicons animates -->
+  <MorphIcon :icon="open ? X : Menu" spring="snappy" />
+
+  <!-- 2. Controlled (gestures, scroll): explicit progress, no spring -->
+  <MorphIcon :from="Menu" :to="X" :progress="dragProgress" />
+
+  <!-- 3. Imperative (sequences): template ref → morphTo / set -->
+  <MorphIcon ref="morph" :icon="Menu" />
+</template>
+```
+
+Same surface as the React binding: presentation props (`size`, `strokeWidth`, `absoluteStrokeWidth`, `color`; `class`, `style` and the rest of the `<svg>` attrs fall through), the same accessibility defaults (`aria-hidden` unless you pass `label`) and the same clean SSR — works with Nuxt out of the box: the server emits the exact static SVG and the runtime is born on hydration. The binding is a plain render function; no SFC compiler or JSX involved.
 
 ### Vanilla (no React)
 
@@ -103,7 +131,7 @@ morphicons has no per-library adapters — any icon set that meets these require
    const bell   = fitIcon(teenySmallBell, 15); // also "0 0 15 15" or [0, 0, 15, 15]
    ```
 
-   It returns a plain `d`, so it goes anywhere an icon is accepted. Call it at module scope, not per render. Skipping it doesn't throw — Procrustes is similarity-invariant, so the grid mismatch never reads as false rotation; it lands in σ as an unwanted zoom, and the target draws outside the canvas. The React binding defaults to `viewBox="0 0 24 24"`, overridable via props.
+   It returns a plain `d`, so it goes anywhere an icon is accepted. Call it at module scope, not per render. Skipping it doesn't throw — Procrustes is similarity-invariant, so the grid mismatch never reads as false rotation; it lands in σ as an unwanted zoom, and the target draws outside the canvas. The React and Vue bindings default to `viewBox="0 0 24 24"`, overridable via props.
 4. **Uniform stroke.** Cosmetic rather than structural: a consistent stroke width and round caps/joins make in-flight shapes look native. These live on the `<svg>`, not in morphicons.
 
 Beyond the libraries in the playground, sets known to qualify on the 24×24 grid — no fitting needed: **Heroicons** (outline style), **Iconoir** (1.5px stroke), **Akar Icons**, **Untitled UI** and **Hugeicons** (stroke style). Off-grid packs work through `fitIcon`: **Teenyicons** (15×15), **Carbon** (32×32), **Heroicons solid** (20×20).
@@ -114,7 +142,7 @@ This also covers the [shadcn registry](https://www.shadcn.io/icons), which re-pu
 
 ```
 ┌─────────────────────────────────────────────┐
-│  bindings   react                           │  thin: ref + createMorph
+│  bindings   react · vue                     │  thin: ref + createMorph
 ├─────────────────────────────────────────────┤
 │  drivers    dom (setAttribute + rAF)        │  singleton scheduler
 ├─────────────────────────────────────────────┤
@@ -125,7 +153,7 @@ This also covers the [shadcn registry](https://www.shadcn.io/icons), which re-pu
 └─────────────────────────────────────────────┘
 ```
 
-The hard rule: **the core never touches the DOM**. Pure functions consume icon data and produce `d` strings. Direct consequence: a React Native driver over `react-native-svg` + Reanimated is just another adapter, not a rewrite. One package with subpath exports (`.` core, `./dom`, `./react`), ESM only, `sideEffects: false`.
+The hard rule: **the core never touches the DOM**. Pure functions consume icon data and produce `d` strings. Direct consequence: a React Native driver over `react-native-svg` + Reanimated is just another adapter, not a rewrite. One package with subpath exports (`.` core, `./dom`, `./react`, `./vue`), ESM only, `sideEffects: false`.
 
 The plan is the central artifact:
 
@@ -266,6 +294,7 @@ CI budget (size-limit, gzip) as an anti-regression tripwire — gates carry ~10%
 | `morphicons` (core) | 6.60 KB | 7 KB |
 | `morphicons/dom` (core + driver) | 7.04 KB | 7.5 KB |
 | `morphicons/react` (all, react external) | 7.77 KB | 8.5 KB |
+| `morphicons/vue` (all, vue external) | 7.81 KB | 8.5 KB |
 
 ## Playground
 
@@ -278,14 +307,26 @@ bun run play   # → http://localhost:3000
 ## Development
 
 ```bash
-bun test          # 83 tests / ~13,400 asserts
-bun run typecheck # strict ×3: core+dom without lib DOM, playground, react
+bun test          # 92 tests / ~13,500 asserts
+bun run typecheck # strict ×4: core+dom without lib DOM, playground, react, vue
 bun run format    # biome
-bun run build     # tsdown → dist/ (entries index, dom, react)
+bun run build     # tsdown → dist/ (entries index, dom, react, vue)
 bun run size      # size gates
 ```
 
 Icons shown in the playground belong to their authors: [Lucide](https://lucide.dev) (ISC), [Feather](https://feathericons.com) (MIT), [Tabler](https://tabler.io/icons) (MIT).
+
+## Star history
+
+<p align="center">
+  <a href="https://star-history.com/#guillermolg00/morphicons&Date">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=guillermolg00/morphicons&type=Date&theme=dark">
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=guillermolg00/morphicons&type=Date">
+      <img alt="Star history chart of morphicons" src="https://api.star-history.com/svg?repos=guillermolg00/morphicons&type=Date" width="640">
+    </picture>
+  </a>
+</p>
 
 ---
 

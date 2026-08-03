@@ -1,6 +1,6 @@
 {
   "name": "morphicons",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Universal morphing for stroke-based icons with spring physics — zero runtime dependencies",
   "license": "MIT",
   "author": "Guillermo (https://guillermolg.com)",
@@ -29,6 +29,8 @@
     "shadcn",
     "feather",
     "react",
+    "vue",
+    "lucide-vue-next",
     "icon-animation"
   ],
   "type": "module",
@@ -48,13 +50,21 @@
     "./react": {
       "types": "./dist/react.d.ts",
       "default": "./dist/react.js"
+    },
+    "./vue": {
+      "types": "./dist/vue.d.ts",
+      "default": "./dist/vue.js"
     }
   },
   "peerDependencies": {
-    "react": ">=18"
+    "react": ">=18",
+    "vue": ">=3.3"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "vue": {
       "optional": true
     }
   },
@@ -63,7 +73,7 @@
   ],
   "scripts": {
     "test": "bun test",
-    "typecheck": "tsc --noEmit && tsc -p playground --noEmit && tsc -p tsconfig.react.json --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p playground --noEmit && tsc -p tsconfig.react.json --noEmit && tsc -p tsconfig.vue.json --noEmit",
     "play": "bun ./playground/index.html",
     "lint": "biome check .",
     "format": "biome check --write .",
@@ -95,6 +105,16 @@
       ],
       "limit": "8.5 KB",
       "gzip": true
+    },
+    {
+      "name": "core + dom + vue (MorphIcon, vue external)",
+      "path": "dist/vue.js",
+      "import": "*",
+      "ignore": [
+        "vue"
+      ],
+      "limit": "8.5 KB",
+      "gzip": true
     }
   ],
   "devDependencies": {
@@ -110,6 +130,7 @@
     "react-dom": "^19.2.8",
     "size-limit": "^13.0.3",
     "tsdown": "^0.22.14",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vue": "^3.5.40"
   }
 }

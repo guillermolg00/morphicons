@@ -15,5 +15,5 @@
     "noEmit": true
   },
   "include": ["src", "test", "tsdown.config.ts"],
-  "exclude": ["src/react", "test/react"]
+  "exclude": ["src/react", "test/react", "src/vue", "test/vue"]
 }
