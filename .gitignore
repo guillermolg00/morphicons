@@ -4,3 +4,5 @@ dist/
 .DS_Store
 .claude
 .codex-testbench-staging
+.vercel
+.env*
