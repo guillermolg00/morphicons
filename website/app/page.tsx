@@ -66,8 +66,8 @@ export default function Home() {
                   (2D Procrustes): if a pair is congruent under rotation, it rotates; if not,
                   it morphs in the aligned frame. Nobody declares rotation groups by hand.
                   Springs are interruptible, corners stay sharp at rest, and the core never
-                  touches the DOM, so React, Vue, Svelte, Next.js and plain JavaScript are
-                  all first-class drivers.
+                  touches the DOM, so React, Vue, Svelte, React Native, Next.js and plain
+                  JavaScript are all first-class drivers.
                 </p>
                 <p className="mt-4 max-w-[60ch] leading-relaxed text-body">
                   Icons are consumed as data, not components: a{" "}

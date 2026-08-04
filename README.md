@@ -36,7 +36,7 @@ The usual icon morphs either interpolate raw coordinates (shapes shrink and shea
 bun add morphicons        # or npm install / pnpm add
 ```
 
-ESM only. `react` (>= 18), `vue` (>= 3.3) and `svelte` (>= 5) are optional peers — only needed for `morphicons/react`, `morphicons/vue` and `morphicons/svelte`.
+ESM only. `react` (>= 18), `vue` (>= 3.3), `svelte` (>= 5) and `react-native` (>= 0.71) + `react-native-svg` (>= 14) are optional peers — only needed for `morphicons/react`, `morphicons/vue`, `morphicons/svelte` and `morphicons/react-native`.
 
 ## Usage
 
@@ -113,9 +113,30 @@ Same surface as the React binding: presentation props (`size`, `strokeWidth`, `a
 
 Same surface again: presentation props, `class`/`style`/rest-attr fall-through — fully typed via `svelte/elements`, so SVG attrs, events and ARIA autocomplete and typos fail the build, like lucide-svelte — the same accessibility defaults and the same clean SSR — works with SvelteKit out of the box. Svelte 5 (runes); the component ships as `.svelte` source and your bundler compiles it via the `svelte` export condition, like every Svelte library.
 
-### Lifecycle contract (all three bindings)
+### React Native — same three modes
 
-The three components share one contract, pinned by mirrored client-mount tests:
+```tsx
+import { MorphIcon, type MorphHandle } from "morphicons/react-native";
+import { Menu, X, Check } from "lucide"; // data, not components
+
+// 1. Uncontrolled (90% of uses): change the prop and morphicons animates
+<MorphIcon icon={open ? X : Menu} spring="snappy" />
+
+// 2. Controlled (gestures, scroll): explicit progress, no spring
+<MorphIcon from={Menu} to={X} progress={dragProgress} />
+
+// 3. Imperative (sequences)
+const ref = useRef<MorphHandle>(null);
+<MorphIcon ref={ref} icon={Menu} />
+ref.current?.morphTo(Check); // animates
+ref.current?.set(X);         // jumps without animating
+```
+
+The DOM-free core beyond the browser: the dom driver is reused verbatim as the engine (React Native has a global `requestAnimationFrame`, and `PathEl` is structural), so the whole platform difference is a shim that forwards the per-frame `d` write to `Path.setNativeProps` of react-native-svg — outside the React render, exactly like the web mutation. Same surface as the React binding (`size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, plus the native `Svg` props: `testID`, touch handlers…), same accessibility defaults (`aria-hidden` unless you pass `label` → `role="img"` + `aria-label`). Reduced motion comes from `AccessibilityInfo` (best-effort: the query is async; a `reduceMotionChanged` subscription keeps it exact from then on). Requires Metro with package `exports` resolution — default since React Native 0.79; on older versions enable `unstable_enablePackageExports`.
+
+### Lifecycle contract (all four bindings)
+
+The four components share one contract, pinned by mirrored client-mount tests:
 
 - **Lazy driver.** Mounting without any icon is fine — SSR emits `<path d="">` and the driver is born with the FIRST icon that shows up, whether a late `icon` prop (data that loads async), a late `from`/`to` pair, or an imperative `set`/`morphTo`. The first icon paints without animating; `morphTo` before the driver exists behaves as `set` (there is nothing to fly from).
 - **Controlled wins.** While `from` AND `to` are both present, the pair owns the path: `icon` changes are ignored, no spring fires. Drop the pair and the current `icon` takes over (animated). Mixing the modes is not an error — the precedence is just explicit.
@@ -175,7 +196,7 @@ This also covers the [shadcn registry](https://www.shadcn.io/icons), which re-pu
 
 ```
 ┌─────────────────────────────────────────────┐
-│  bindings   react · vue · svelte            │  thin: ref + createMorph
+│  bindings   react · vue · svelte · rn      │  thin: ref + createMorph
 ├─────────────────────────────────────────────┤
 │  drivers    dom (setAttribute + rAF)        │  singleton scheduler
 ├─────────────────────────────────────────────┤
@@ -186,7 +207,7 @@ This also covers the [shadcn registry](https://www.shadcn.io/icons), which re-pu
 └─────────────────────────────────────────────┘
 ```
 
-The hard rule: **the core never touches the DOM**. Pure functions consume icon data and produce `d` strings. Direct consequence: a React Native driver over `react-native-svg` + Reanimated is just another adapter, not a rewrite. One package with subpath exports (`.` core, `./dom`, `./react`, `./vue`, `./svelte`), ESM only, `sideEffects: false`.
+The hard rule: **the core never touches the DOM**. Pure functions consume icon data and produce `d` strings. Direct consequence: the React Native binding over `react-native-svg` is just another adapter, not a rewrite — it reuses the dom driver verbatim through a `setNativeProps` shim. One package with subpath exports (`.` core, `./dom`, `./react`, `./react-native`, `./vue`, `./svelte`), ESM only, `sideEffects: false`.
 
 The plan is the central artifact:
 
@@ -327,6 +348,7 @@ CI budget (size-limit, gzip) as an anti-regression tripwire — gates carry ~10%
 | `morphicons` (core) | 6.60 KB | 7 KB |
 | `morphicons/dom` (core + driver) | 7.04 KB | 7.5 KB |
 | `morphicons/react` (all, react external) | 7.89 KB | 8.5 KB |
+| `morphicons/react-native` (all, react/rn/rnsvg external) | 8.25 KB | 9 KB |
 | `morphicons/vue` (all, vue external) | 7.93 KB | 8.5 KB |
 | `morphicons/svelte` TS half (all, svelte external) | 7.54 KB | 8 KB |
 | `MorphIcon.svelte` (ships as source, consumer-compiled) | 1.25 KB | 1.4 KB |
@@ -342,8 +364,8 @@ bun run play   # → http://localhost:3000
 ## Development
 
 ```bash
-bun test          # 135 tests / ~13,600 asserts
-bun run typecheck # strict ×5: core+dom without lib DOM, playground, react, vue, svelte
+bun test          # 156 tests / ~13,700 asserts
+bun run typecheck # strict ×6: core+dom without lib DOM, playground, react, react-native, vue, svelte
 bun run format    # biome
 bun run build     # tsdown → dist/ + scripts/build-svelte.ts (svelte entry)
 bun run size      # size gates

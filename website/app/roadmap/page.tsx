@@ -52,6 +52,16 @@ const GROUPS: Group[] = [
 				title: "React, Vue and Svelte lifecycle hardening",
 				note: "One documented contract for the three drivers — icons that arrive late, explicit mode precedence, clean re-entry — pinned by real client-mount tests.",
 			},
+			{
+				title: "React Native driver",
+				note: (
+					<>
+						<Code>morphicons/react-native</Code>: the DOM-free core beyond the browser —
+						the same <Code>MorphIcon</Code> over react-native-svg, same lifecycle
+						contract, reduced motion from the OS setting
+					</>
+				),
+			},
 		],
 	},
 	{
@@ -65,10 +75,6 @@ const GROUPS: Group[] = [
 			{
 				title: "Component showcase",
 				note: "Copy-paste recipes for popular component libraries like shadcn/ui, where a morph genuinely lifts the UX.",
-			},
-			{
-				title: "React Native driver",
-				note: "The DOM-free core, beyond the browser.",
 			},
 		],
 	},

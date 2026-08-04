@@ -18,6 +18,8 @@
   "exclude": [
     "src/react",
     "test/react",
+    "src/react-native",
+    "test/react-native",
     "src/vue",
     "test/vue",
     "src/svelte",
