@@ -13,7 +13,14 @@
   <a href="https://www.morphicons.com"><strong>morphicons.com</strong></a> — live playground
 </p>
 
-Universal morphing for stroke-based icons (Lucide, Tabler, Heroicons, Iconoir, or your own paths): **any icon morphs into any other** with spring physics. Rotations are never declared by hand — they emerge from the math (2D Procrustes + polar interpolation). Zero runtime dependencies.
+<p align="center">
+  <a href="https://github.com/sponsors/guillermolg00">
+    <img src="https://img.shields.io/badge/%E2%98%95%20Buy%20me%20a%20coffee-EA4AAA" alt="Buy me a coffee — sponsor morphicons on GitHub Sponsors">
+  </a>
+</p>
+
+Universal morphing for stroke-based icons (Lucide, Tab
+ler, Heroicons, Iconoir, or your own paths): **any icon morphs into any other** with spring physics. Rotations are never declared by hand — they emerge from the math (2D Procrustes + polar interpolation). Zero runtime dependencies.
 
 ```tsx
 import { MorphIcon } from "morphicons/react";

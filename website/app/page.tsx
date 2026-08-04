@@ -1,5 +1,6 @@
 import { CodePanel } from "@/components/code-panel";
 import { InstallCommand } from "@/components/copy-button";
+import { DocsButton } from "@/components/docs-button";
 import { GITHUB_URL, SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { Studio } from "@/components/studio";
 
@@ -80,28 +81,7 @@ export default function Home() {
                   </code>{" "}
                   format, structurally typed. No adapters, no per-library setup.
                 </p>
-                <a
-                  href={DOCS_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-8 inline-flex h-11 items-center gap-2 rounded-md bg-ink px-5 text-sm font-medium text-canvas shadow-card transition-opacity hover:opacity-90"
-                >
-                  See the full docs
-                  <svg
-                    viewBox="0 0 24 24"
-                    width={16}
-                    height={16}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M7 7h10v10" />
-                    <path d="M7 17 17 7" />
-                  </svg>
-                </a>
+                <DocsButton href={DOCS_URL} />
               </div>
               <dl className="grid grid-cols-2 content-center gap-x-8 gap-y-10">
                 {STATS.map((s) => (
