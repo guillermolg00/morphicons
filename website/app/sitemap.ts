@@ -13,8 +13,14 @@ const ROUTES: MetadataRoute.Sitemap = [
     priority: 1,
   },
   {
+    url: `${SITE_URL}/showcase`,
+    lastModified: "2026-08-04",
+    changeFrequency: "monthly",
+    priority: 0.8,
+  },
+  {
     url: `${SITE_URL}/roadmap`,
-    lastModified: "2026-08-03",
+    lastModified: "2026-08-04",
     changeFrequency: "monthly",
     priority: 0.6,
   },

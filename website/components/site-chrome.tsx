@@ -1,12 +1,24 @@
 import Link from "next/link";
 import { LogoMark } from "@/components/logo";
+import { MobileNav, type NavLink } from "@/components/mobile-nav";
 
 export const GITHUB_URL = "https://github.com/guillermolg00/morphicons";
 
-/* Shared page chrome: one header and one footer for every route. */
+const NAV_LINKS: NavLink[] = [
+  /* The home hero IS the studio; "Playground" is the way back to it. */
+  { href: "/", label: "Playground" },
+  { href: "/showcase", label: "Showcase" },
+  { href: "/#how", label: "How it works" },
+  { href: "/roadmap", label: "Roadmap" },
+  { href: GITHUB_URL, label: "GitHub", external: true },
+  { href: "https://x.com/guillermolg00", label: "X", external: true },
+];
+
+/* Shared page chrome: one header and one footer for every route. The header
+   is `relative` because the mobile dropdown positions against it. */
 export function SiteHeader() {
   return (
-    <header className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between px-6">
+    <header className="relative mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between px-6">
       <Link
         href="/"
         className="flex items-center gap-2 text-[15px] font-medium text-ink"
@@ -14,28 +26,30 @@ export function SiteHeader() {
         <LogoMark size={20} />
         morphicons
       </Link>
-      <nav className="flex items-center gap-6">
-        <Link
-          href="/#how"
-          className="text-sm text-body transition-colors hover:text-ink"
-        >
-          How it works
-        </Link>
-        <Link
-          href="/roadmap"
-          className="text-sm text-body transition-colors hover:text-ink"
-        >
-          Roadmap
-        </Link>
-        <a
-          href={GITHUB_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm text-body transition-colors hover:text-ink"
-        >
-          GitHub
-        </a>
+      <nav className="flex items-center gap-6 max-md:hidden">
+        {NAV_LINKS.map((l) =>
+          l.external ? (
+            <a
+              key={l.label}
+              href={l.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-body transition-colors hover:text-ink"
+            >
+              {l.label}
+            </a>
+          ) : (
+            <Link
+              key={l.label}
+              href={l.href}
+              className="text-sm text-body transition-colors hover:text-ink"
+            >
+              {l.label}
+            </Link>
+          ),
+        )}
       </nav>
+      <MobileNav links={NAV_LINKS} />
     </header>
   );
 }

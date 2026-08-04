@@ -69,11 +69,22 @@ const HEROICONS_PICK = {
   code: "code-bracket",
   trophy: "trophy",
   cake: "cake",
+  /* Showcase pairs (app/showcase): every recipe endpoint must exist in the
+     three libraries so the library selector swaps them 1:1. */
+  copy: "document-duplicate",
+  check: "check",
+  x: "x-mark",
+  "eye-off": "eye-slash",
+  pause: "pause",
+  "folder-open": "folder-open",
+  volume: "speaker-wave",
+  "volume-x": "speaker-x-mark",
 };
 
 /* Tabler names are already friendly; the search matches substrings, so
    mood-smile is found by "smile". Universal first, then the fun ones the
-   other packs don't have. */
+   other packs don't have. An entry is a name, or [label, name] when the
+   universal label differs from Tabler's (player-play → play). */
 const TABLER_PICK = [
   "home",
   "search",
@@ -133,7 +144,25 @@ const TABLER_PICK = [
   "brand-github",
   "bike",
   "moon-stars",
+  /* Showcase pairs (app/showcase) — see the note on HEROICONS_PICK. */
+  "copy",
+  "check",
+  "x",
+  "eye",
+  "eye-off",
+  "sun",
+  "moon",
+  "folder-open",
+  "volume",
+  ["volume-x", "volume-off"],
+  ["play", "player-play"],
+  ["pause", "player-pause"],
 ];
+
+/* [label, tablerName] for every entry. */
+const TABLER_ENTRIES = TABLER_PICK.map((e) =>
+  Array.isArray(e) ? e : [e, e],
+);
 
 /* Presentation attrs are set at the <svg> level by the site (stroke, caps,
    joins) — only geometry survives into the vendored IconNode. */
@@ -180,7 +209,7 @@ const missing = [
   ...Object.values(HEROICONS_PICK)
     .filter((f) => heroicon(f) === null)
     .map((f) => `heroicons:${f}`),
-  ...TABLER_PICK.filter((n) => !tabler[n]).map((n) => `tabler:${n}`),
+  ...TABLER_ENTRIES.filter(([, n]) => !tabler[n]).map(([, n]) => `tabler:${n}`),
 ];
 if (missing.length) {
   console.error("Not present in the packages:", missing.join(", "));
@@ -207,7 +236,7 @@ ${entries(Object.entries(HEROICONS_PICK).map(([label, f]) => [label, heroicon(f)
 };
 
 export const TABLER: Record<string, IconNode> = {
-${entries(TABLER_PICK.map((n) => [n, tabler[n]]))}
+${entries(TABLER_ENTRIES.map(([label, n]) => [label, tabler[n]]))}
 };
 `;
 

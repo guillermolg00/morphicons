@@ -62,6 +62,10 @@ const GROUPS: Group[] = [
 					</>
 				),
 			},
+			{
+				title: "Component showcase",
+				note: "The icon swaps that show up most in real shadcn/ui apps, as copy-paste components: pick the library, framework, spring and stroke.",
+			},
 		],
 	},
 	{
@@ -71,10 +75,6 @@ const GROUPS: Group[] = [
 			{
 				title: "Bulletproof inputs",
 				note: "Clear errors at every public boundary, malformed paths, invalid springs, mismatched sample sizes.",
-			},
-			{
-				title: "Component showcase",
-				note: "Copy-paste recipes for popular component libraries like shadcn/ui, where a morph genuinely lifts the UX.",
 			},
 		],
 	},
