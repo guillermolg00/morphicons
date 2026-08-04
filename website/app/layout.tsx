@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 const SITE_URL = "https://www.morphicons.com";
-const TITLE = "morphicons — SVG icon morphing library for React & Vue";
+const TITLE = "morphicons — SVG icon morphing library for React, Vue & Svelte";
 const DESCRIPTION =
-  "Morph any SVG icon into any other with spring physics. Animate Lucide, Tabler and Heroicons in React, Vue or vanilla JS. Zero dependencies, ~6 KB gzip.";
+  "Morph any SVG icon into any other with spring physics. Animate Lucide, Tabler and Heroicons in React, Vue, Svelte or vanilla JS. Zero dependencies, ~6 KB gzip.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -35,6 +35,8 @@ export const metadata: Metadata = {
     "react animated icon library",
     "animated icons vue",
     "vue icon morph",
+    "animated icons svelte",
+    "svelte icon morph",
     "animated icons",
     "icon animation",
     "lucide",
@@ -117,7 +119,7 @@ const JSON_LD = {
       applicationCategory: "DeveloperApplication",
       applicationSubCategory: "JavaScript animation library",
       operatingSystem: "Web browser",
-      softwareVersion: "1.2.0",
+      softwareVersion: "1.3.0",
       license: MIT_LICENSE,
       isAccessibleForFree: true,
       offers: {
@@ -126,7 +128,7 @@ const JSON_LD = {
         priceCurrency: "USD",
       },
       keywords:
-        "svg morph animation, morph svg icon library, animated icons react, animated icons vue, animate lucide icons, icon morphing",
+        "svg morph animation, morph svg icon library, animated icons react, animated icons vue, animated icons svelte, animate lucide icons, icon morphing",
       author: AUTHOR,
       sameAs: [REPO_URL, NPM_URL],
     },

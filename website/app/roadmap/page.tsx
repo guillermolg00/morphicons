@@ -39,13 +39,18 @@ const GROUPS: Group[] = [
 				note: "The interactive Studio: every pair, every library, scrubbable mid-flight.",
 			},
 			{
-				title: "React and Vue driver",
+				title: "React, Vue and Svelte drivers",
 				note: (
 					<>
-						<Code>morphicons/react</Code> <Code>morphicons/vue</Code>: <Code>MorphIcon</Code>{" "}
-						experience: SSR first paint, accessibility included
+						<Code>morphicons/react</Code> <Code>morphicons/vue</Code>{" "}
+						<Code>morphicons/svelte</Code>: <Code>MorphIcon</Code> experience: SSR first
+						paint, accessibility included
 					</>
 				),
+			},
+			{
+				title: "React, Vue and Svelte lifecycle hardening",
+				note: "One documented contract for the three drivers — icons that arrive late, explicit mode precedence, clean re-entry — pinned by real client-mount tests.",
 			},
 		],
 	},
@@ -64,10 +69,6 @@ const GROUPS: Group[] = [
 			{
 				title: "React Native driver",
 				note: "The DOM-free core, beyond the browser.",
-			},
-			{
-				title: "React and Vue lifecycle hardening",
-				note: "Late-mounting icons, stricter prop modes, client-side test coverage.",
 			},
 		],
 	},

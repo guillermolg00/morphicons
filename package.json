@@ -1,6 +1,6 @@
 {
   "name": "morphicons",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Universal morphing for stroke-based icons with spring physics — zero runtime dependencies",
   "license": "MIT",
   "author": "Guillermo (https://guillermolg.com)",
@@ -31,6 +31,8 @@
     "react",
     "vue",
     "lucide-vue-next",
+    "svelte",
+    "lucide-svelte",
     "icon-animation"
   ],
   "type": "module",
@@ -54,14 +56,23 @@
     "./vue": {
       "types": "./dist/vue.d.ts",
       "default": "./dist/vue.js"
+    },
+    "./svelte": {
+      "types": "./dist/svelte.d.ts",
+      "svelte": "./dist/svelte.js",
+      "default": "./dist/svelte.js"
     }
   },
   "peerDependencies": {
     "react": ">=18",
+    "svelte": ">=5",
     "vue": ">=3.3"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "svelte": {
       "optional": true
     },
     "vue": {
@@ -73,11 +84,11 @@
   ],
   "scripts": {
     "test": "bun test",
-    "typecheck": "tsc --noEmit && tsc -p playground --noEmit && tsc -p tsconfig.react.json --noEmit && tsc -p tsconfig.vue.json --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p playground --noEmit && tsc -p tsconfig.react.json --noEmit && tsc -p tsconfig.vue.json --noEmit && tsc -p tsconfig.svelte.json --noEmit",
     "play": "bun ./playground/index.html",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "build": "tsdown",
+    "build": "tsdown && bun scripts/build-svelte.ts",
     "size": "size-limit",
     "prepublishOnly": "bun run build"
   },
@@ -115,20 +126,42 @@
       ],
       "limit": "8.5 KB",
       "gzip": true
+    },
+    {
+      "name": "core + dom + svelte TS half (svelte external)",
+      "path": "dist/svelte-shared.js",
+      "import": "*",
+      "ignore": [
+        "svelte"
+      ],
+      "limit": "8 KB",
+      "gzip": true
+    },
+    {
+      "name": "svelte component (ships as source, consumer-compiled)",
+      "path": "dist/MorphIcon.svelte",
+      "disablePlugins": [
+        "@size-limit/esbuild"
+      ],
+      "limit": "1.4 KB",
+      "gzip": true
     }
   ],
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
+    "@happy-dom/global-registrator": "^20.11.1",
     "@size-limit/preset-small-lib": "^13.0.3",
     "@tabler/icons": "^3.46.0",
     "@types/bun": "^1.3.14",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "feather-icons": "^4.29.2",
+    "happy-dom": "^20.11.1",
     "lucide": "^1.28.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "size-limit": "^13.0.3",
+    "svelte": "^5.56.8",
     "tsdown": "^0.22.14",
     "typescript": "^7.0.2",
     "vue": "^3.5.40"

@@ -36,7 +36,7 @@ The usual icon morphs either interpolate raw coordinates (shapes shrink and shea
 bun add morphicons        # or npm install / pnpm add
 ```
 
-ESM only. `react` (>= 18) and `vue` (>= 3.3) are optional peers — only needed for `morphicons/react` and `morphicons/vue`.
+ESM only. `react` (>= 18), `vue` (>= 3.3) and `svelte` (>= 5) are optional peers — only needed for `morphicons/react`, `morphicons/vue` and `morphicons/svelte`.
 
 ## Usage
 
@@ -88,6 +88,39 @@ const morph = ref<MorphHandle | null>(null);
 
 Same surface as the React binding: presentation props (`size`, `strokeWidth`, `absoluteStrokeWidth`, `color`; `class`, `style` and the rest of the `<svg>` attrs fall through), the same accessibility defaults (`aria-hidden` unless you pass `label`) and the same clean SSR — works with Nuxt out of the box: the server emits the exact static SVG and the runtime is born on hydration. The binding is a plain render function; no SFC compiler or JSX involved.
 
+### Svelte — same three modes
+
+```svelte
+<script lang="ts">
+  import { MorphIcon, type MorphHandle } from "morphicons/svelte";
+  import { Menu, X, Check } from "lucide"; // data, not components
+
+  let open = $state(false);
+  let morph = $state<MorphHandle>();
+  // morph?.morphTo(Check)  → animates
+  // morph?.set(X)          → jumps without animating
+</script>
+
+<!-- 1. Uncontrolled (90% of uses): change the prop and morphicons animates -->
+<MorphIcon icon={open ? X : Menu} spring="snappy" />
+
+<!-- 2. Controlled (gestures, scroll): explicit progress, no spring -->
+<MorphIcon from={Menu} to={X} progress={dragProgress} />
+
+<!-- 3. Imperative (sequences): bind:this → morphTo / set -->
+<MorphIcon bind:this={morph} icon={Menu} />
+```
+
+Same surface again: presentation props, `class`/`style`/rest-attr fall-through — fully typed via `svelte/elements`, so SVG attrs, events and ARIA autocomplete and typos fail the build, like lucide-svelte — the same accessibility defaults and the same clean SSR — works with SvelteKit out of the box. Svelte 5 (runes); the component ships as `.svelte` source and your bundler compiles it via the `svelte` export condition, like every Svelte library.
+
+### Lifecycle contract (all three bindings)
+
+The three components share one contract, pinned by mirrored client-mount tests:
+
+- **Lazy driver.** Mounting without any icon is fine — SSR emits `<path d="">` and the driver is born with the FIRST icon that shows up, whether a late `icon` prop (data that loads async), a late `from`/`to` pair, or an imperative `set`/`morphTo`. The first icon paints without animating; `morphTo` before the driver exists behaves as `set` (there is nothing to fly from).
+- **Controlled wins.** While `from` AND `to` are both present, the pair owns the path: `icon` changes are ignored, no spring fires. Drop the pair and the current `icon` takes over (animated). Mixing the modes is not an error — the precedence is just explicit.
+- **Clean re-entry.** Any exit from controlled mode (an imperative call or an icon takeover) invalidates the frozen pair, so returning to the same `from`/`to` re-bases on `from` and renders exactly like a clean mount at that `progress`.
+
 ### Vanilla (no React)
 
 ```ts
@@ -131,7 +164,7 @@ morphicons has no per-library adapters — any icon set that meets these require
    const bell   = fitIcon(teenySmallBell, 15); // also "0 0 15 15" or [0, 0, 15, 15]
    ```
 
-   It returns a plain `d`, so it goes anywhere an icon is accepted. Call it at module scope, not per render. Skipping it doesn't throw — Procrustes is similarity-invariant, so the grid mismatch never reads as false rotation; it lands in σ as an unwanted zoom, and the target draws outside the canvas. The React and Vue bindings default to `viewBox="0 0 24 24"`, overridable via props.
+   It returns a plain `d`, so it goes anywhere an icon is accepted. Call it at module scope, not per render. Skipping it doesn't throw — Procrustes is similarity-invariant, so the grid mismatch never reads as false rotation; it lands in σ as an unwanted zoom, and the target draws outside the canvas. The React, Vue and Svelte bindings default to `viewBox="0 0 24 24"`, overridable via props.
 4. **Uniform stroke.** Cosmetic rather than structural: a consistent stroke width and round caps/joins make in-flight shapes look native. These live on the `<svg>`, not in morphicons.
 
 Beyond the libraries in the playground, sets known to qualify on the 24×24 grid — no fitting needed: **Heroicons** (outline style), **Iconoir** (1.5px stroke), **Akar Icons**, **Untitled UI** and **Hugeicons** (stroke style). Off-grid packs work through `fitIcon`: **Teenyicons** (15×15), **Carbon** (32×32), **Heroicons solid** (20×20).
@@ -142,7 +175,7 @@ This also covers the [shadcn registry](https://www.shadcn.io/icons), which re-pu
 
 ```
 ┌─────────────────────────────────────────────┐
-│  bindings   react · vue                     │  thin: ref + createMorph
+│  bindings   react · vue · svelte            │  thin: ref + createMorph
 ├─────────────────────────────────────────────┤
 │  drivers    dom (setAttribute + rAF)        │  singleton scheduler
 ├─────────────────────────────────────────────┤
@@ -153,7 +186,7 @@ This also covers the [shadcn registry](https://www.shadcn.io/icons), which re-pu
 └─────────────────────────────────────────────┘
 ```
 
-The hard rule: **the core never touches the DOM**. Pure functions consume icon data and produce `d` strings. Direct consequence: a React Native driver over `react-native-svg` + Reanimated is just another adapter, not a rewrite. One package with subpath exports (`.` core, `./dom`, `./react`, `./vue`), ESM only, `sideEffects: false`.
+The hard rule: **the core never touches the DOM**. Pure functions consume icon data and produce `d` strings. Direct consequence: a React Native driver over `react-native-svg` + Reanimated is just another adapter, not a rewrite. One package with subpath exports (`.` core, `./dom`, `./react`, `./vue`, `./svelte`), ESM only, `sideEffects: false`.
 
 The plan is the central artifact:
 
@@ -293,8 +326,10 @@ CI budget (size-limit, gzip) as an anti-regression tripwire — gates carry ~10%
 |---|---|---|
 | `morphicons` (core) | 6.60 KB | 7 KB |
 | `morphicons/dom` (core + driver) | 7.04 KB | 7.5 KB |
-| `morphicons/react` (all, react external) | 7.77 KB | 8.5 KB |
-| `morphicons/vue` (all, vue external) | 7.81 KB | 8.5 KB |
+| `morphicons/react` (all, react external) | 7.89 KB | 8.5 KB |
+| `morphicons/vue` (all, vue external) | 7.93 KB | 8.5 KB |
+| `morphicons/svelte` TS half (all, svelte external) | 7.54 KB | 8 KB |
+| `MorphIcon.svelte` (ships as source, consumer-compiled) | 1.25 KB | 1.4 KB |
 
 ## Playground
 
@@ -307,10 +342,10 @@ bun run play   # → http://localhost:3000
 ## Development
 
 ```bash
-bun test          # 92 tests / ~13,500 asserts
-bun run typecheck # strict ×4: core+dom without lib DOM, playground, react, vue
+bun test          # 135 tests / ~13,600 asserts
+bun run typecheck # strict ×5: core+dom without lib DOM, playground, react, vue, svelte
 bun run format    # biome
-bun run build     # tsdown → dist/ (entries index, dom, react, vue)
+bun run build     # tsdown → dist/ + scripts/build-svelte.ts (svelte entry)
 bun run size      # size gates
 ```
 

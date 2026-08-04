@@ -23,7 +23,7 @@ jobs:
       - name: Lint (biome)
         run: bun run lint
 
-      - name: Typecheck (strict ×3)
+      - name: Typecheck (strict ×5)
         run: bun run typecheck
 
       - name: Test

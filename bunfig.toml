@@ -1,0 +1,9 @@
+# Test preloads:
+# - register-client-dom: happy-dom globals for the whole run (vue captures
+#   `document` at import time, so it must exist before any suite loads); the
+#   dom driver suite still proves itself against fakes — see test/client-dom.ts.
+# - svelte/loader: compiles .svelte on the fly — server variant for the SSR
+#   suite, client variant behind the ?client suffix for the mount suite.
+
+[test]
+preload = ["./test/register-client-dom.ts", "./test/svelte/loader.ts"]

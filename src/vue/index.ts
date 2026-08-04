@@ -83,17 +83,32 @@ export const MorphIcon = defineComponent({
 
     const pathEl = shallowRef<SVGPathElement | null>(null);
     let morph: Morph | null = null;
+    let dead = false;
     // true when the instance has an active seek plan based on the current
     // controlled pair (enables incremental seek without re-basing on `from`).
     let based = false;
     let pair: readonly [IconInput, IconInput] | null = null;
+    // Watch baselines (mount doesn't fire the mode watchers).
+    let prevIcon = props.icon;
+    let prevControlled = props.from !== undefined && props.to !== undefined;
+
+    /** Driver birth, lazy included (#1 of the lifecycle contract): an
+     *  iconless mount keeps the element and the FIRST icon to show up (prop
+     *  or imperative) creates the driver, already showing it — no flight. */
+    const ensure = (birth: IconInput): Morph | null => {
+      if (morph) return morph;
+      const el = pathEl.value;
+      if (dead || !el) return null;
+      morph = createMorph(el, birth);
+      return morph;
+    };
 
     onMounted(() => {
       const el = pathEl.value;
       const { icon, from, to, progress } = props;
       const controlled = from !== undefined && to !== undefined;
       const initialIcon = icon ?? from ?? to;
-      if (!el || initialIcon === undefined) return;
+      if (!el || initialIcon === undefined) return; // lazy: waits for an icon
       const m = createMorph(el, controlled ? from : initialIcon);
       morph = m;
       if (controlled) {
@@ -109,27 +124,45 @@ export const MorphIcon = defineComponent({
     });
 
     onBeforeUnmount(() => {
+      dead = true;
       morph?.destroy();
       morph = null;
       based = false;
       pair = null;
     });
 
-    // Uncontrolled mode: animate when `icon` changes (mount doesn't fire).
+    // Uncontrolled mode: animate when `icon` changes. Controlled wins while
+    // a full pair is present; dropping the pair hands the path back to
+    // `icon` and invalidates the frozen pair (see the lifecycle contract in
+    // the README — shared verbatim by the three bindings).
     watch(
-      () => props.icon,
-      (icon) => {
-        if (icon !== undefined) morph?.morphTo(icon, props.spring);
+      () => [props.icon, props.from, props.to] as const,
+      () => {
+        const { icon, from, to } = props;
+        const controlled = from !== undefined && to !== undefined;
+        const left = prevControlled && !controlled;
+        prevControlled = controlled;
+        const changed = icon !== prevIcon;
+        prevIcon = icon;
+        if (controlled) return;
+        if (icon === undefined || (!changed && !left)) return;
+        pair = null;
+        based = false;
+        if (morph) morph.morphTo(icon, props.spring);
+        else ensure(icon); // late first icon: born already showing it
       },
     );
 
     // Controlled mode: freeze the pair at `progress` via seek (no spring).
+    // The driver may be born here too (a pair arriving after an iconless
+    // mount seeks exactly like a clean mount).
     watch(
       () => [props.from, props.to, props.progress] as const,
       () => {
-        const m = morph;
         const { from, to, progress } = props;
-        if (!m || from === undefined || to === undefined) return;
+        if (from === undefined || to === undefined) return;
+        const m = morph ?? ensure(from);
+        if (!m) return;
         const t = progress ?? 0;
         const changed = !pair || pair[0] !== from || pair[1] !== to;
         if (changed) {
@@ -153,9 +186,18 @@ export const MorphIcon = defineComponent({
     );
 
     expose({
-      morphTo: (i: IconInput, s?: SpringPreset | MorphOptions) =>
-        morph?.morphTo(i, s ?? props.spring),
-      set: (i: IconInput) => morph?.set(i),
+      morphTo: (i: IconInput, s?: SpringPreset | MorphOptions) => {
+        pair = null; // imperative exit from controlled mode
+        based = false;
+        if (morph) morph.morphTo(i, s ?? props.spring);
+        else ensure(i); // no driver yet: nothing to fly from — same as set
+      },
+      set: (i: IconInput) => {
+        pair = null;
+        based = false;
+        if (morph) morph.set(i);
+        else ensure(i);
+      },
     } satisfies MorphHandle);
 
     return () => {

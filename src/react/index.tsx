@@ -11,6 +11,7 @@
 import {
   forwardRef,
   type SVGProps,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -101,29 +102,47 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
     const morphRef = useRef<Morph | null>(null);
     const springRef = useRef(spring);
     springRef.current = spring;
-    const firstIcon = useRef(true);
+    // Watch baselines (mount doesn't fire the mode effect thanks to these).
+    const prevIcon = useRef(icon);
+    const prevControlled = useRef(controlled);
+    const dead = useRef(false);
     // true when the instance has an active seek plan based on the current
     // controlled pair (enables incremental seek without re-basing on `from`).
     const based = useRef(false);
     const pair = useRef<readonly [IconInput, IconInput] | null>(null);
 
-    useIsoLayoutEffect(() => {
+    /** Driver birth, lazy included (#1 of the lifecycle contract): an
+     *  iconless mount keeps the element and the FIRST icon to show up (prop
+     *  or imperative) creates the driver, already showing it — no flight.
+     *  Stable across renders: closes over refs only. */
+    const ensure = useCallback((birth: IconInput): Morph | null => {
+      if (morphRef.current) return morphRef.current;
       const el = pathRef.current;
-      if (!el || initialIcon === undefined) return;
-      const m = createMorph(el, controlled ? from : initialIcon);
-      morphRef.current = m;
-      if (controlled) {
-        pair.current = [from, to];
-        const t = progress ?? 0;
-        if (t <= 0) m.set(from);
-        else if (t >= 1) m.set(to);
-        else {
-          m.seek(to, t);
-          based.current = true;
+      if (dead.current || !el) return null;
+      morphRef.current = createMorph(el, birth);
+      return morphRef.current;
+    }, []);
+
+    useIsoLayoutEffect(() => {
+      dead.current = false;
+      const el = pathRef.current;
+      if (el && initialIcon !== undefined) {
+        const m = createMorph(el, controlled ? from : initialIcon);
+        morphRef.current = m;
+        if (controlled) {
+          pair.current = [from, to];
+          const t = progress ?? 0;
+          if (t <= 0) m.set(from);
+          else if (t >= 1) m.set(to);
+          else {
+            m.seek(to, t);
+            based.current = true;
+          }
         }
       }
       return () => {
-        m.destroy();
+        dead.current = true;
+        morphRef.current?.destroy();
         morphRef.current = null;
         based.current = false;
         pair.current = null;
@@ -131,20 +150,31 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
       // Mount only: later changes are handled by the per-mode effects.
     }, []);
 
-    // Uncontrolled mode: animate when `icon` changes (first render doesn't).
+    // Uncontrolled mode: animate when `icon` changes. Controlled wins while
+    // a full pair is present; dropping the pair hands the path back to
+    // `icon` and invalidates the frozen pair (see the lifecycle contract in
+    // the README — shared verbatim by the three bindings).
     useEffect(() => {
-      if (icon === undefined) return;
-      if (firstIcon.current) {
-        firstIcon.current = false;
-        return;
-      }
-      morphRef.current?.morphTo(icon, springRef.current);
-    }, [icon]);
+      const left = prevControlled.current && !controlled;
+      prevControlled.current = controlled;
+      const changed = icon !== prevIcon.current;
+      prevIcon.current = icon;
+      if (controlled) return;
+      if (icon === undefined || (!changed && !left)) return;
+      pair.current = null;
+      based.current = false;
+      const m = morphRef.current;
+      if (m) m.morphTo(icon, springRef.current);
+      else ensure(icon); // late first icon: born already showing it
+    }, [icon, controlled, ensure]);
 
     // Controlled mode: freeze the pair at `progress` via seek (no spring).
+    // The driver may be born here too (a pair arriving after an iconless
+    // mount seeks exactly like a clean mount).
     useEffect(() => {
-      const m = morphRef.current;
-      if (!m || !controlled) return;
+      if (!controlled) return;
+      const m = morphRef.current ?? ensure(from);
+      if (!m) return;
       const t = progress ?? 0;
       const changed = !pair.current || pair.current[0] !== from || pair.current[1] !== to;
       if (changed) {
@@ -164,15 +194,27 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
         }
         m.seek(to, t);
       }
-    }, [controlled, from, to, progress]);
+    }, [controlled, from, to, progress, ensure]);
 
     useImperativeHandle(
       ref,
       (): MorphHandle => ({
-        morphTo: (i, s) => morphRef.current?.morphTo(i, s ?? springRef.current),
-        set: (i) => morphRef.current?.set(i),
+        morphTo: (i, s) => {
+          pair.current = null; // imperative exit from controlled mode
+          based.current = false;
+          const m = morphRef.current;
+          if (m) m.morphTo(i, s ?? springRef.current);
+          else ensure(i); // no driver yet: nothing to fly from — same as set
+        },
+        set: (i) => {
+          pair.current = null;
+          based.current = false;
+          const m = morphRef.current;
+          if (m) m.set(i);
+          else ensure(i);
+        },
       }),
-      [],
+      [ensure],
     );
 
     const sw = absoluteStrokeWidth

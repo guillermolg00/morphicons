@@ -14,9 +14,23 @@
       "tsdown.config.ts",
       "playground/**/*.ts",
       "playground/**/*.mjs",
-      "!playground/vendor-icons.ts"
+      "!playground/vendor-icons.ts",
+      "scripts/**/*.ts"
     ]
   },
+  "overrides": [
+    {
+      "includes": ["**/*.svelte"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedImports": "off"
+          }
+        }
+      }
+    }
+  ],
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
