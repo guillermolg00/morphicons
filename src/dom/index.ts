@@ -104,8 +104,9 @@ function sampledOf(icon: IconInput): Sampled[] {
 }
 
 /** Canonical `d` of an icon: the input string verbatim, or the real cubics
- *  at full precision (the at-rest snap). Exported because it is what a
- *  binding renders at SSR/rest before any runtime exists. */
+ *  quantized to 4 decimals (the at-rest snap; engine-stable bytes so SSR
+ *  hydration matches, see fmtCanon in core/serialize). Exported because it
+ *  is what a binding renders at SSR/rest before any runtime exists. */
 export function canonicalD(icon: IconInput): string {
   if (typeof icon === "string") return icon;
   let d = canon.get(icon);

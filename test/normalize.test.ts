@@ -115,7 +115,9 @@ describe("normalization to cubics", () => {
     expect(() => iconToCubics([["text", {}]])).toThrow(/unsupported/);
   });
 
-  test("round-trip: cubics → d → identical cubics", () => {
+  test("round-trip: cubics → d → cubics within the emission precision", () => {
+    // Canonical emission quantizes to 4 decimals (engine-stable bytes for
+    // SSR), so the round-trip bound is half a step: 5e-5.
     for (const d of [
       "M20 6 9 17l-5-5",
       "M0 0C0 1 1 1 1 0S2 -1 2 0",
@@ -127,8 +129,27 @@ describe("normalization to cubics", () => {
       expect(b.length).toBe(a.length);
       for (let i = 0; i < a.length; i++) {
         expect(b[i].closed).toBe(a[i].closed);
-        expect(maxDiff(a[i].pts, b[i].pts)).toBeLessThan(1e-12);
+        expect(maxDiff(a[i].pts, b[i].pts)).toBeLessThanOrEqual(5e-5);
       }
     }
+  });
+
+  test("canonical d: quantized emission is byte-stable across engines", () => {
+    // Arc→cubic conversion goes through trig, and cos/sin differ in the last
+    // ulp between JS engines (V8 vs JSC): the observed Next SSR hydration
+    // mismatch on lucide's eye, where the server's d and the browser's d
+    // disagree in the final digit. Quantized emission (4 decimals, invisible
+    // at 24px) makes the bytes engine-independent: a 1-ulp perturbation of
+    // every coordinate must not change the string.
+    const eye =
+      "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0";
+    const a = iconToCubics(eye);
+    const d = cubicsToPathD(a);
+    expect(d).not.toMatch(/\d\.\d{5,}/);
+    const nudged = a.map(({ pts, closed }) => ({
+      pts: pts.map((v) => v * (1 + Number.EPSILON)),
+      closed,
+    }));
+    expect(cubicsToPathD(nudged)).toBe(d);
   });
 });

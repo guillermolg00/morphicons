@@ -26,15 +26,27 @@ export function serialize(
   return d;
 }
 
-/** Cubic subpaths → canonical `d` at full precision (round-trip). */
+/* Canonical emission uses 4 decimals instead: still invisible at 24px, but
+   here the point is byte stability, not size. Arc→cubic conversion goes
+   through trig whose last ulp differs across JS engines (V8 vs JSC), and SSR
+   hydration compares the server's d against the browser's byte by byte —
+   full-precision tails made those differ (Next hydration mismatch on icons
+   with non-cardinal arcs, e.g. lucide's eye). Quantization absorbs the ulp;
+   parse → emit round-trips within 5e-5 (pinned in normalize.test.ts). */
+function fmtCanon(v: number): string {
+  return String(Math.round(v * 1e4) / 1e4);
+}
+
+/** Cubic subpaths → canonical `d`, quantized to 4 decimals (engine-stable
+ *  bytes; see fmtCanon). */
 export function cubicsToPathD(paths: readonly CubicPath[]): string {
   let d = "";
   for (const { pts, closed } of paths) {
-    d += `M${pts[0]} ${pts[1]}`;
+    d += `M${fmtCanon(pts[0])} ${fmtCanon(pts[1])}`;
     for (let i = 2; i < pts.length; i += 6) {
-      d += `C${pts[i]} ${pts[i + 1]} ${pts[i + 2]} ${pts[i + 3]} ${pts[i + 4]} ${
-        pts[i + 5]
-      }`;
+      d += `C${fmtCanon(pts[i])} ${fmtCanon(pts[i + 1])} ${fmtCanon(pts[i + 2])} ${fmtCanon(
+        pts[i + 3],
+      )} ${fmtCanon(pts[i + 4])} ${fmtCanon(pts[i + 5])}`;
     }
     if (closed) d += "Z";
   }

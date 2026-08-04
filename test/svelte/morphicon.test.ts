@@ -12,6 +12,19 @@ import { ICONS } from "../helpers";
 
 const SQUARE: IconNode = [["rect", { x: 2, y: 2, width: 20, height: 20 }]];
 
+/* Arcs at non-cardinal angles: the arc→cubic trig carries engine-specific
+   last-ulp noise, which the quantized emission must absorb (SSR compares
+   the server's bytes against the browser's). */
+const EYE: IconNode = [
+  [
+    "path",
+    {
+      d: "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0",
+    },
+  ],
+  ["circle", { cx: 12, cy: 12, r: 3 }],
+];
+
 const ssr = (props: Record<string, unknown> = {}) =>
   render(MorphIcon, { props: props as MorphIconProps }).body;
 
@@ -34,6 +47,13 @@ describe("MorphIcon (Svelte SSR)", () => {
   test("IconNode: the initial d is the canonical cubics", () => {
     const html = ssr({ icon: SQUARE });
     expect(html).toContain(`d="${canonicalD(SQUARE)}"`);
+  });
+
+  test("IconNode with arcs: the SSR d is engine-stable (quantized)", () => {
+    const html = ssr({ icon: EYE });
+    const d = / d="([^"]*)"/.exec(html)?.[1] ?? "";
+    expect(d.length).toBeGreaterThan(0);
+    expect(d).not.toMatch(/\d\.\d{5,}/);
   });
 
   test("label: role img + <title>, no aria-hidden", () => {
