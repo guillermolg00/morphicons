@@ -27,7 +27,7 @@
     "eslint-config-next": "16.2.12",
     "heroicons": "^2.2.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^6"
   },
   "ignoreScripts": [
     "sharp",
