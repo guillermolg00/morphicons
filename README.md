@@ -45,6 +45,8 @@ bun add morphicons        # or npm install / pnpm add
 
 ESM only. `react` (>= 18), `vue` (>= 3.3), `svelte` (>= 5) and `react-native` (>= 0.71) + `react-native-svg` (>= 14) are optional peers — only needed for `morphicons/react`, `morphicons/vue`, `morphicons/svelte` and `morphicons/react-native`.
 
+**Icons come from a data package, not a component package.** morphicons consumes icon *data* (an `IconNode` or a raw `d` string). For Lucide that means the vanilla `lucide` package: `import { Menu, X } from "lucide"` gives you `IconNode`s, which is why every snippet below says "data, not components". The framework packages (`lucide-react`, `lucide-vue-next`, `@lucide/svelte`, `lucide-react-native`) export components, and `MorphIcon` can't consume those. If your app already renders static icons with one of them, keep it: the data and component packages coexist by design and both tree-shake cleanly, so you only pay for the icons you import. Just keep their versions aligned, so the icons you morph match the ones you render statically.
+
 ## Usage
 
 ### React — three modes
@@ -65,7 +67,7 @@ ref.current?.morphTo(Check); // animates
 ref.current?.set(X);         // jumps without animating
 ```
 
-Drop-in replacement for lucide-react: `size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `className` and the rest of the `<svg>` props pass straight through. Correct accessibility by default: `aria-hidden` unless you pass `label` (→ `role="img"` + `<title>`). Clean SSR: the server emits the exact static SVG (zero flash, zero layout shift); the runtime is born on hydration. Morphs play regardless of the OS reduce-motion setting by default; opt into honoring it with `reducedMotion="user"` (see [Reduced motion](#reduced-motion-all-four-bindings)).
+Drop-in replacement for lucide-react (the props surface: the `icon` prop takes Lucide *data*, not lucide-react components, see [Install](#install)): `size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `className` and the rest of the `<svg>` props pass straight through. Correct accessibility by default: `aria-hidden` unless you pass `label` (→ `role="img"` + `<title>`). Clean SSR: the server emits the exact static SVG (zero flash, zero layout shift); the runtime is born on hydration. Morphs play regardless of the OS reduce-motion setting by default; opt into honoring it with `reducedMotion="user"` (see [Reduced motion](#reduced-motion-all-four-bindings)).
 
 ### Vue — same three modes
 
@@ -118,7 +120,7 @@ Same surface as the React binding: presentation props (`size`, `strokeWidth`, `a
 <MorphIcon bind:this={morph} icon={Menu} />
 ```
 
-Same surface again: presentation props, `class`/`style`/rest-attr fall-through — fully typed via `svelte/elements`, so SVG attrs, events and ARIA autocomplete and typos fail the build, like lucide-svelte — the same accessibility defaults and the same clean SSR — works with SvelteKit out of the box. Svelte 5 (runes); the component ships as `.svelte` source and your bundler compiles it via the `svelte` export condition, like every Svelte library.
+Same surface again: presentation props, `class`/`style`/rest-attr fall-through — fully typed via `svelte/elements`, so SVG attrs, events and ARIA autocomplete and typos fail the build, like lucide-svelte — the same accessibility defaults and the same clean SSR — works with SvelteKit out of the box. Svelte 5 (runes); the component ships as `.svelte` source and your bundler compiles it via the `svelte` export condition, like every Svelte library. If you followed Lucide's official Svelte guide you already have `@lucide/svelte`: keep it for your static icons; `MorphIcon` takes the data exports from the vanilla `lucide` package (see [Install](#install)).
 
 ### React Native — same three modes
 
