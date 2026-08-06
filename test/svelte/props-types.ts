@@ -11,6 +11,7 @@ export const valid: MorphIconProps = {
   to: [["circle", { cx: 12, cy: 12, r: 10 }]],
   progress: 0.5,
   spring: "snappy",
+  reducedMotion: "user",
   size: 32,
   color: "#e6a83c",
   strokeWidth: 1.5,
@@ -37,4 +38,10 @@ export const wrongType: MorphIconProps = {
   to: "M18 6 6 18",
   // @ts-expect-error progress is a number, not a string
   progress: "half",
+};
+
+export const rmValue: MorphIconProps = {
+  icon: "M4 6h16",
+  // @ts-expect-error reducedMotion is a closed union: never | user | always
+  reducedMotion: "sometimes",
 };

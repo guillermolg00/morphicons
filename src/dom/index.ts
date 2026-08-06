@@ -28,6 +28,17 @@ export interface MorphOptions {
   damping?: number;
 }
 
+/** Reduced-motion policy. `"never"` (default): morphs always animate,
+ *  ignoring the OS setting. `"user"`: while the OS reduce-motion setting is
+ *  on, `morphTo` degrades to an instant `set`. `"always"`: every `morphTo`
+ *  jumps (tests, screenshots). */
+export type ReducedMotionMode = "never" | "user" | "always";
+
+export interface CreateMorphOptions {
+  /** Reduced-motion policy; also live via the `reducedMotion` property. */
+  reducedMotion?: ReducedMotionMode;
+}
+
 export interface Morph {
   /** Animates toward the icon with spring physics. Interruptible: mid-flight
    *  it re-plans from the intermediate shape while preserving velocity. */
@@ -41,6 +52,8 @@ export interface Morph {
   /** Current progress (t of the last frame; 1 at rest). Assigning it is
    *  equivalent to seek(target, t) on the active target. */
   progress: number;
+  /** Reduced-motion policy, live: assigning it applies to the next morphTo. */
+  reducedMotion: ReducedMotionMode;
   /** Unregisters the instance; later calls are no-ops. */
   destroy(): void;
 }
@@ -144,8 +157,13 @@ function resolveSpring(s?: SpringPreset | MorphOptions): { k: number; c: number 
 // ---------------------------------------------------------------------------
 
 /** Creates the morph instance over a `<path>` and paints the initial icon. */
-export function createMorph(el: PathEl, icon: IconInput): Morph {
+export function createMorph(
+  el: PathEl,
+  icon: IconInput,
+  options?: CreateMorphOptions,
+): Morph {
   const spring = new Spring();
+  let reducedMotion: ReducedMotionMode = options?.reducedMotion ?? "never";
   let target = icon;
   let rest = true; // the element's d is target's canonical one
   let plan: MorphPlan | null = null;
@@ -219,6 +237,15 @@ export function createMorph(el: PathEl, icon: IconInput): Morph {
     settle();
   };
 
+  /** True when the policy says this morphTo must jump instead of flying. */
+  const motionOff = (): boolean => {
+    if (reducedMotion === "always") return true;
+    if (reducedMotion !== "user") return false;
+    if (typeof matchMedia === "undefined") return false;
+    const mm = matchMedia;
+    return mm?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  };
+
   const seek = (icon: IconInput, tt: number): void => {
     if (dead) return;
     const reuse = !rest && plan !== null && icon === target;
@@ -232,12 +259,9 @@ export function createMorph(el: PathEl, icon: IconInput): Morph {
     morphTo(icon, sp) {
       if (dead) return;
       if (icon === target && (rest || flying)) return; // already there / en route
-      if (typeof matchMedia !== "undefined") {
-        const mm = matchMedia;
-        if (mm?.("(prefers-reduced-motion: reduce)").matches) {
-          setNow(icon);
-          return;
-        }
+      if (motionOff()) {
+        setNow(icon);
+        return;
       }
       const { k, c } = resolveSpring(sp);
       spring.config(k, c);
@@ -258,6 +282,12 @@ export function createMorph(el: PathEl, icon: IconInput): Morph {
     },
     set progress(v: number) {
       if (!dead) seek(target, v);
+    },
+    get reducedMotion() {
+      return reducedMotion;
+    },
+    set reducedMotion(v: ReducedMotionMode) {
+      reducedMotion = v;
     },
     destroy() {
       stop();

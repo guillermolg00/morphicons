@@ -24,7 +24,13 @@ import { resampleIcon } from "../core/resample";
 import { serialize } from "../core/serialize";
 import type { SpringPreset } from "../core/spring";
 import type { IconInput } from "../core/types";
-import { canonicalD, createMorph, type Morph, type MorphOptions } from "../dom/index";
+import {
+  canonicalD,
+  createMorph,
+  type Morph,
+  type MorphOptions,
+  type ReducedMotionMode,
+} from "../dom/index";
 
 /** Imperative surface exposed via ref. */
 export interface MorphHandle {
@@ -44,6 +50,10 @@ export interface MorphIconProps
   progress?: number;
   /** Physics for uncontrolled/imperative mode: preset or custom spring. */
   spring?: SpringPreset | MorphOptions;
+  /** Reduced-motion policy: "never" (default) animates regardless of the OS
+   *  setting, "user" honors prefers-reduced-motion (morphs degrade to an
+   *  instant swap while it is on), "always" always jumps. */
+  reducedMotion?: ReducedMotionMode;
   size?: number | string;
   color?: string;
   strokeWidth?: number | string;
@@ -79,6 +89,7 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
       to,
       progress,
       spring,
+      reducedMotion,
       size = 24,
       color = "currentColor",
       strokeWidth = 2,
@@ -102,6 +113,8 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
     const morphRef = useRef<Morph | null>(null);
     const springRef = useRef(spring);
     springRef.current = spring;
+    const rmRef = useRef(reducedMotion);
+    rmRef.current = reducedMotion;
     // Watch baselines (mount doesn't fire the mode effect thanks to these).
     const prevIcon = useRef(icon);
     const prevControlled = useRef(controlled);
@@ -119,7 +132,7 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
       if (morphRef.current) return morphRef.current;
       const el = pathRef.current;
       if (dead.current || !el) return null;
-      morphRef.current = createMorph(el, birth);
+      morphRef.current = createMorph(el, birth, { reducedMotion: rmRef.current });
       return morphRef.current;
     }, []);
 
@@ -127,7 +140,9 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
       dead.current = false;
       const el = pathRef.current;
       if (el && initialIcon !== undefined) {
-        const m = createMorph(el, controlled ? from : initialIcon);
+        const m = createMorph(el, controlled ? from : initialIcon, {
+          reducedMotion: rmRef.current,
+        });
         morphRef.current = m;
         if (controlled) {
           pair.current = [from, to];
@@ -149,6 +164,14 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
       };
       // Mount only: later changes are handled by the per-mode effects.
     }, []);
+
+    // The reduced-motion policy is live. Declared BEFORE the mode effects so
+    // a commit that changes the policy and the icon together applies the new
+    // policy to that same morph.
+    useEffect(() => {
+      const m = morphRef.current;
+      if (m) m.reducedMotion = reducedMotion ?? "never";
+    }, [reducedMotion]);
 
     // Uncontrolled mode: animate when `icon` changes. Controlled wins while
     // a full pair is present; dropping the pair hands the path back to
@@ -245,5 +268,5 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
 );
 
 export type { IconInput, IconNode, Sampled } from "../core/types";
-export type { Morph, MorphOptions, PathEl } from "../dom/index";
+export type { Morph, MorphOptions, PathEl, ReducedMotionMode } from "../dom/index";
 export type { SpringPreset };

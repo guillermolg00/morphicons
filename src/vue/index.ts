@@ -24,7 +24,13 @@ import { resampleIcon } from "../core/resample";
 import { serialize } from "../core/serialize";
 import type { SpringPreset } from "../core/spring";
 import type { IconInput } from "../core/types";
-import { canonicalD, createMorph, type Morph, type MorphOptions } from "../dom/index";
+import {
+  canonicalD,
+  createMorph,
+  type Morph,
+  type MorphOptions,
+  type ReducedMotionMode,
+} from "../dom/index";
 
 /** Imperative surface exposed on the component instance (template ref). */
 export interface MorphHandle {
@@ -61,6 +67,13 @@ export const MorphIcon = defineComponent({
     spring: {
       type: [String, Object] as PropType<SpringPreset | MorphOptions>,
       default: undefined,
+    },
+    /** Reduced-motion policy: "never" (default) animates regardless of the OS
+     *  setting, "user" honors prefers-reduced-motion (morphs degrade to an
+     *  instant swap while it is on), "always" always jumps. */
+    reducedMotion: {
+      type: String as PropType<ReducedMotionMode>,
+      default: "never",
     },
     size: { type: [Number, String], default: 24 },
     color: { type: String, default: "currentColor" },
@@ -99,7 +112,7 @@ export const MorphIcon = defineComponent({
       if (morph) return morph;
       const el = pathEl.value;
       if (dead || !el) return null;
-      morph = createMorph(el, birth);
+      morph = createMorph(el, birth, { reducedMotion: props.reducedMotion });
       return morph;
     };
 
@@ -109,7 +122,9 @@ export const MorphIcon = defineComponent({
       const controlled = from !== undefined && to !== undefined;
       const initialIcon = icon ?? from ?? to;
       if (!el || initialIcon === undefined) return; // lazy: waits for an icon
-      const m = createMorph(el, controlled ? from : initialIcon);
+      const m = createMorph(el, controlled ? from : initialIcon, {
+        reducedMotion: props.reducedMotion,
+      });
       morph = m;
       if (controlled) {
         pair = [from, to];
@@ -131,6 +146,17 @@ export const MorphIcon = defineComponent({
       pair = null;
     });
 
+    // The reduced-motion policy is live. Prop-watcher order is NOT creation
+    // order in Vue (the mode watcher can fire first), so this watcher only
+    // covers policy-only changes; the mode watcher re-applies the policy
+    // itself before flying.
+    watch(
+      () => props.reducedMotion,
+      (v) => {
+        if (morph) morph.reducedMotion = v;
+      },
+    );
+
     // Uncontrolled mode: animate when `icon` changes. Controlled wins while
     // a full pair is present; dropping the pair hands the path back to
     // `icon` and invalidates the frozen pair (see the lifecycle contract in
@@ -148,8 +174,11 @@ export const MorphIcon = defineComponent({
         if (icon === undefined || (!changed && !left)) return;
         pair = null;
         based = false;
-        if (morph) morph.morphTo(icon, props.spring);
-        else ensure(icon); // late first icon: born already showing it
+        if (morph) {
+          // Policy and icon may change in the same flush: apply it first.
+          morph.reducedMotion = props.reducedMotion;
+          morph.morphTo(icon, props.spring);
+        } else ensure(icon); // late first icon: born already showing it
       },
     );
 
@@ -229,5 +258,5 @@ export const MorphIcon = defineComponent({
 });
 
 export type { IconInput, IconNode, Sampled } from "../core/types";
-export type { Morph, MorphOptions, PathEl } from "../dom/index";
+export type { Morph, MorphOptions, PathEl, ReducedMotionMode } from "../dom/index";
 export type { SpringPreset };

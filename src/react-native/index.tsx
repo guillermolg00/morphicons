@@ -8,9 +8,11 @@
    writes the `d` attribute — so the whole platform difference is a shim
    that forwards that write to Path.setNativeProps({ d }), outside the vdom
    exactly like the web mutation. The initial `d` is computed ONCE with the
-   pure core and React never rewrites it. No matchMedia in RN: reduced
-   motion comes from AccessibilityInfo, cached best-effort (the query is
-   async) and kept fresh via the reduceMotionChanged event. */
+   pure core and React never rewrites it. No matchMedia in RN: with
+   reducedMotion="user" the OS setting comes from AccessibilityInfo, cached
+   best-effort (the query is async) and kept fresh via the
+   reduceMotionChanged event; the default "never" policy never touches the
+   accessibility bridge. */
 
 import {
   forwardRef,
@@ -29,7 +31,13 @@ import { resampleIcon } from "../core/resample";
 import { serialize } from "../core/serialize";
 import type { SpringPreset } from "../core/spring";
 import type { IconInput } from "../core/types";
-import { canonicalD, createMorph, type Morph, type MorphOptions } from "../dom/index";
+import {
+  canonicalD,
+  createMorph,
+  type Morph,
+  type MorphOptions,
+  type ReducedMotionMode,
+} from "../dom/index";
 
 /** Imperative surface exposed via ref. */
 export interface MorphHandle {
@@ -48,6 +56,11 @@ export interface MorphIconProps extends Omit<SvgProps, "from" | "to"> {
   progress?: number;
   /** Physics for uncontrolled/imperative mode: preset or custom spring. */
   spring?: SpringPreset | MorphOptions;
+  /** Reduced-motion policy: "never" (default) animates regardless of the OS
+   *  setting, "user" honors AccessibilityInfo's reduce motion (morphs degrade
+   *  to an instant swap while it is on; best-effort, the query is async),
+   *  "always" always jumps. */
+  reducedMotion?: ReducedMotionMode;
   size?: number | string;
   color?: string;
   strokeWidth?: number | string;
@@ -62,7 +75,8 @@ export interface MorphIconProps extends Omit<SvgProps, "from" | "to"> {
 const useIsoLayoutEffect = typeof document === "undefined" ? useEffect : useLayoutEffect;
 
 // Reduced motion, module-level: ONE AccessibilityInfo query + subscription
-// for all instances, initialized lazily at first mount. Best-effort by
+// for all instances, armed lazily by the FIRST instance that opts into the
+// "user" policy ("never"/"always" never touch the bridge). Best-effort by
 // nature — the query is async, so the first frames of an immediate morph
 // may animate before the answer lands; the subscription keeps it exact from
 // then on.
@@ -109,6 +123,7 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
       to,
       progress,
       spring,
+      reducedMotion,
       size = 24,
       color = "currentColor",
       strokeWidth = 2,
@@ -131,6 +146,8 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
     const morphRef = useRef<Morph | null>(null);
     const springRef = useRef(spring);
     springRef.current = spring;
+    const rmRef = useRef(reducedMotion);
+    rmRef.current = reducedMotion;
     // Watch baselines (mount doesn't fire the mode effect thanks to these).
     const prevIcon = useRef(icon);
     const prevControlled = useRef(controlled);
@@ -148,9 +165,12 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
       },
     });
 
-    /** morphTo that honors the OS reduce-motion setting (best-effort). */
+    /** morphTo that applies the reduced-motion policy ("user" reads the OS
+     *  setting via AccessibilityInfo, best-effort). */
     const fly = (m: Morph, i: IconInput, s?: SpringPreset | MorphOptions): void => {
-      if (reduced) m.set(i);
+      const mode = rmRef.current ?? "never";
+      if (mode === "user") initReducedMotion(); // late opt-in: arm the bridge
+      if (mode === "always" || (mode === "user" && reduced)) m.set(i);
       else m.morphTo(i, s);
     };
     const flyRef = useRef(fly);
@@ -169,7 +189,6 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
 
     useIsoLayoutEffect(() => {
       dead.current = false;
-      initReducedMotion();
       if (pathRef.current && initialIcon !== undefined) {
         const m = createMorph(el.current, controlled ? from : initialIcon);
         morphRef.current = m;
@@ -193,6 +212,13 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
       };
       // Mount only: later changes are handled by the per-mode effects.
     }, []);
+
+    // "user" arms the OS listener the moment it is requested (mount included):
+    // the query is async, so arming early keeps the best-effort window small.
+    // fly() also arms it as a catch-all for imperative calls.
+    useEffect(() => {
+      if (reducedMotion === "user") initReducedMotion();
+    }, [reducedMotion]);
 
     // Uncontrolled mode: animate when `icon` changes. Controlled wins while
     // a full pair is present; dropping the pair hands the path back to
@@ -287,5 +313,5 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
 );
 
 export type { IconInput, IconNode, Sampled } from "../core/types";
-export type { Morph, MorphOptions, PathEl } from "../dom/index";
+export type { Morph, MorphOptions, PathEl, ReducedMotionMode } from "../dom/index";
 export type { SpringPreset };

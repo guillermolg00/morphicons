@@ -65,7 +65,7 @@ ref.current?.morphTo(Check); // animates
 ref.current?.set(X);         // jumps without animating
 ```
 
-Drop-in replacement for lucide-react: `size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `className` and the rest of the `<svg>` props pass straight through. Correct accessibility by default: `aria-hidden` unless you pass `label` (→ `role="img"` + `<title>`). Clean SSR: the server emits the exact static SVG (zero flash, zero layout shift); the runtime is born on hydration. `prefers-reduced-motion` degrades to an instant swap.
+Drop-in replacement for lucide-react: `size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `className` and the rest of the `<svg>` props pass straight through. Correct accessibility by default: `aria-hidden` unless you pass `label` (→ `role="img"` + `<title>`). Clean SSR: the server emits the exact static SVG (zero flash, zero layout shift); the runtime is born on hydration. Morphs play regardless of the OS reduce-motion setting by default; opt into honoring it with `reducedMotion="user"` (see [Reduced motion](#reduced-motion-all-four-bindings)).
 
 ### Vue — same three modes
 
@@ -139,7 +139,7 @@ ref.current?.morphTo(Check); // animates
 ref.current?.set(X);         // jumps without animating
 ```
 
-The DOM-free core beyond the browser: the dom driver is reused verbatim as the engine (React Native has a global `requestAnimationFrame`, and `PathEl` is structural), so the whole platform difference is a shim that forwards the per-frame `d` write to `Path.setNativeProps` of react-native-svg — outside the React render, exactly like the web mutation. Same surface as the React binding (`size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, plus the native `Svg` props: `testID`, touch handlers…), same accessibility defaults (`aria-hidden` unless you pass `label` → `role="img"` + `aria-label`). Reduced motion comes from `AccessibilityInfo` (best-effort: the query is async; a `reduceMotionChanged` subscription keeps it exact from then on). Requires Metro with package `exports` resolution — default since React Native 0.79; on older versions enable `unstable_enablePackageExports`.
+The DOM-free core beyond the browser: the dom driver is reused verbatim as the engine (React Native has a global `requestAnimationFrame`, and `PathEl` is structural), so the whole platform difference is a shim that forwards the per-frame `d` write to `Path.setNativeProps` of react-native-svg — outside the React render, exactly like the web mutation. Same surface as the React binding (`size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, plus the native `Svg` props: `testID`, touch handlers…), same accessibility defaults (`aria-hidden` unless you pass `label` → `role="img"` + `aria-label`). With `reducedMotion="user"`, the OS setting comes from `AccessibilityInfo` (best-effort: the query is async; a `reduceMotionChanged` subscription keeps it exact from then on). Requires Metro with package `exports` resolution — default since React Native 0.79; on older versions enable `unstable_enablePackageExports`.
 
 ### Lifecycle contract (all four bindings)
 
@@ -148,6 +148,20 @@ The four components share one contract, pinned by mirrored client-mount tests:
 - **Lazy driver.** Mounting without any icon is fine — SSR emits `<path d="">` and the driver is born with the FIRST icon that shows up, whether a late `icon` prop (data that loads async), a late `from`/`to` pair, or an imperative `set`/`morphTo`. The first icon paints without animating; `morphTo` before the driver exists behaves as `set` (there is nothing to fly from).
 - **Controlled wins.** While `from` AND `to` are both present, the pair owns the path: `icon` changes are ignored, no spring fires. Drop the pair and the current `icon` takes over (animated). Mixing the modes is not an error — the precedence is just explicit.
 - **Clean re-entry.** Any exit from controlled mode (an imperative call or an icon takeover) invalidates the frozen pair, so returning to the same `from`/`to` re-bases on `from` and renders exactly like a clean mount at that `progress`.
+
+### Reduced motion (all four bindings)
+
+Icon morphs are small, short, communicative micro-transitions: the kind of motion the reduce-motion guidance considers generally acceptable, unlike parallax or full-screen movement. Auto-degrading them made the library look broken to every user with the OS setting on, so since 1.4.2 they play by default and the policy is an explicit prop (the same default Motion, formerly Framer Motion, ships):
+
+```tsx
+<MorphIcon icon={open ? X : Menu} reducedMotion="user" />
+```
+
+- `"never"` (default): morphs always animate; the OS setting is ignored.
+- `"user"`: while the OS reduce-motion setting is on, every `morphTo` degrades to an instant swap (the pre-1.4.2 behavior). The web bindings read `prefers-reduced-motion`; React Native reads `AccessibilityInfo`, and only touches the accessibility bridge when some instance opts in.
+- `"always"`: every `morphTo` jumps without animating (tests, screenshots).
+
+The prop is live: changing it governs the next morph. The vanilla driver takes the same policy as an option, `createMorph(el, icon, { reducedMotion: "user" })`, and exposes it as a mutable `morph.reducedMotion`. Apps that must strictly follow the user's system preference should pass `reducedMotion="user"` across the board.
 
 ### Vanilla (no React)
 
@@ -159,6 +173,7 @@ m.morphTo(X, "snappy");              // preset or { stiffness, damping }
 m.set(Check);                        // jump without animating (canonical d)
 m.seek(X, 0.4);                      // morph frozen at t — scrubbing, gestures
 m.progress = 0.4;                    // sugar: seek on the active target
+m.reducedMotion = "user";            // live policy: "never" (default) | "user" | "always"
 m.destroy();
 ```
 

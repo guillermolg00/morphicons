@@ -10,7 +10,7 @@ import { resampleIcon } from "../core/resample";
 import { serialize } from "../core/serialize";
 import type { SpringPreset } from "../core/spring";
 import type { IconInput } from "../core/types";
-import type { Morph } from "../dom/index";
+import type { Morph, ReducedMotionMode } from "../dom/index";
 import { canonicalD, createMorph, type MorphOptions, type PathEl } from "../dom/index";
 
 /** Imperative surface exposed on the component instance (`bind:this`). */
@@ -35,6 +35,10 @@ export interface MorphIconProps
   progress?: number;
   /** Physics for uncontrolled/imperative mode: preset or custom spring. */
   spring?: SpringPreset | MorphOptions;
+  /** Reduced-motion policy: "never" (default) animates regardless of the OS
+   *  setting, "user" honors prefers-reduced-motion (morphs degrade to an
+   *  instant swap while it is on), "always" always jumps. */
+  reducedMotion?: ReducedMotionMode;
   size?: number | string;
   color?: string;
   strokeWidth?: number | string;
@@ -59,7 +63,8 @@ function frozenD(from: IconInput, to: IconInput, t: number): string {
 }
 
 type ModeProps = Pick<MorphIconProps, "icon" | "from" | "to" | "progress">;
-type WatchProps = ModeProps & { spring?: SpringPreset | MorphOptions };
+type CtrlProps = ModeProps & Pick<MorphIconProps, "reducedMotion">;
+type WatchProps = CtrlProps & { spring?: SpringPreset | MorphOptions };
 
 /** The initial d is constant for Svelte: computed once from the mount-time
  *  props (server and client produce the same string → hydration without
@@ -86,10 +91,13 @@ export function computeInitialD({ icon, from, to, progress }: ModeProps): string
  *    path back to `icon`.
  *  - Every exit from controlled mode (imperative call or icon takeover)
  *    invalidates the frozen pair, so returning to it re-bases on `from`. */
-export function createController({ icon, from, to, progress }: ModeProps) {
+export function createController({ icon, from, to, progress, reducedMotion }: CtrlProps) {
   let el: PathEl | null = null;
   let dead = false;
   let morph: Morph | null = null;
+  // Reduced-motion policy: tracked here so a driver born at any point (mount,
+  // late icon, imperative) starts with the current value.
+  let rm: ReducedMotionMode = reducedMotion ?? "never";
   // true when the instance has an active seek plan based on the current
   // controlled pair (enables incremental seek without re-basing on `from`).
   let based = false;
@@ -105,7 +113,7 @@ export function createController({ icon, from, to, progress }: ModeProps) {
   const ensure = (birth: IconInput): Morph | null => {
     if (morph) return morph;
     if (dead || !el) return null;
-    morph = createMorph(el, birth);
+    morph = createMorph(el, birth, { reducedMotion: rm });
     return morph;
   };
 
@@ -139,12 +147,13 @@ export function createController({ icon, from, to, progress }: ModeProps) {
   };
 
   return {
-    mount(mountEl: PathEl, { icon, from, to, progress }: ModeProps): void {
+    mount(mountEl: PathEl, { icon, from, to, progress, reducedMotion }: CtrlProps): void {
       el = mountEl;
+      rm = reducedMotion ?? rm;
       const controlled = from !== undefined && to !== undefined;
       const initialIcon = icon ?? from ?? to;
       if (initialIcon === undefined) return; // lazy: the driver waits for an icon
-      const m = createMorph(el, controlled ? from : initialIcon);
+      const m = createMorph(el, controlled ? from : initialIcon, { reducedMotion: rm });
       morph = m;
       if (controlled) {
         pair = [from, to];
@@ -170,7 +179,12 @@ export function createController({ icon, from, to, progress }: ModeProps) {
     /** Prop watcher: ONE owner decides per run — the controlled pair while it
      *  is fully present, `icon` otherwise (mount doesn't fire thanks to the
      *  init-time baselines). */
-    watch({ icon, from, to, progress, spring }: WatchProps): void {
+    watch({ icon, from, to, progress, spring, reducedMotion }: WatchProps): void {
+      // The reduced-motion policy is live, applied BEFORE the mode logic so
+      // a run that changes the policy and the icon together applies the new
+      // policy to that same morph.
+      rm = reducedMotion ?? "never";
+      if (morph) morph.reducedMotion = rm;
       const controlled = from !== undefined && to !== undefined;
       const left = prevControlled && !controlled;
       const iconChanged = icon !== prevIcon;
@@ -210,5 +224,5 @@ export function createController({ icon, from, to, progress }: ModeProps) {
 }
 
 export type { IconInput, IconNode, Sampled } from "../core/types";
-export type { Morph, MorphOptions, PathEl } from "../dom/index";
+export type { Morph, MorphOptions, PathEl, ReducedMotionMode } from "../dom/index";
 export type { SpringPreset };

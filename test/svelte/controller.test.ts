@@ -119,4 +119,32 @@ describe("createController", () => {
     expect(p.d).toBe("");
     expect(pending.size).toBe(0);
   });
+
+  test("reducedMotion seeds the driver at birth ('always' jumps from the start)", () => {
+    const p = fakePath();
+    const props = { icon: ICONS.menu, reducedMotion: "always" as const };
+    const ctrl = createController(props);
+    ctrl.mount(p.el, props);
+    ctrl.watch({ ...props, icon: ICONS.x });
+    expect(p.d).toBe(ICONS.x);
+    expect(pending.size).toBe(0);
+    ctrl.destroy();
+  });
+
+  test("reducedMotion is live and applies BEFORE the mode logic of the same run", () => {
+    const p = fakePath();
+    const props = { icon: ICONS.menu };
+    const ctrl = createController(props);
+    ctrl.mount(p.el, props);
+    // Policy and icon change in the SAME watch run: the new policy governs it.
+    ctrl.watch({ icon: ICONS.x, reducedMotion: "always" });
+    expect(p.d).toBe(ICONS.x);
+    expect(pending.size).toBe(0);
+    // Dropping the prop falls back to "never": the next change flies.
+    ctrl.watch({ icon: ICONS.check });
+    expect(pending.size).toBe(1);
+    settleAll();
+    expect(p.d).toBe(ICONS.check);
+    ctrl.destroy();
+  });
 });

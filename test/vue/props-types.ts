@@ -14,6 +14,7 @@ export const valid = h(MorphIcon, {
   icon: "M4 6h16M4 12h16M4 18h16",
   progress: 0.5,
   spring: "snappy",
+  reducedMotion: "user",
   size: 32,
   color: "#e6a83c",
   strokeWidth: 1.5,
@@ -25,6 +26,9 @@ export const valid = h(MorphIcon, {
 
 // @ts-expect-error progress is a number, not a string
 export const wrongType = h(MorphIcon, { icon: "M4 6h16", progress: "half" });
+
+// @ts-expect-error reducedMotion is a closed union: never | user | always
+export const rmValue = h(MorphIcon, { icon: "M4 6h16", reducedMotion: "sometimes" });
 
 // NOT an error on purpose: unknown keys are Vue attrs fallthrough (untyped
 // by Vue's design). If this ever starts failing, Vue grew stricter typing —

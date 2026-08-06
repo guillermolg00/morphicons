@@ -25,6 +25,7 @@ let {
   to,
   progress,
   spring,
+  reducedMotion,
   size = 24,
   color = "currentColor",
   strokeWidth = 2,
@@ -40,17 +41,17 @@ const initialD = computeInitialD({ icon, from, to, progress });
 let pathEl: SVGPathElement | undefined = $state();
 // svelte-ignore state_referenced_locally — init-time values on purpose: they
 // seed the controller's watch baselines so the first $effect run is a no-op.
-const ctrl = createController({ icon, from, to, progress });
+const ctrl = createController({ icon, from, to, progress, reducedMotion });
 
 onMount(() => {
-  if (pathEl) ctrl.mount(pathEl, { icon, from, to, progress });
+  if (pathEl) ctrl.mount(pathEl, { icon, from, to, progress, reducedMotion });
   return () => ctrl.destroy();
 });
 
 // Prop changes: one watcher owns the mode logic (controlled wins — change
 // detection and precedence live in shared.ts).
 $effect(() => {
-  const next = { icon, from, to, progress, spring };
+  const next = { icon, from, to, progress, spring, reducedMotion };
   untrack(() => ctrl.watch(next));
 });
 

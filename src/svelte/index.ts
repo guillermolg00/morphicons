@@ -16,5 +16,5 @@ export const MorphIcon = MorphIconComponent as unknown as Component<
 
 export type { SpringPreset } from "../core/spring";
 export type { IconInput, IconNode, Sampled } from "../core/types";
-export type { Morph, MorphOptions, PathEl } from "../dom/index";
+export type { Morph, MorphOptions, PathEl, ReducedMotionMode } from "../dom/index";
 export type { MorphHandle, MorphIconProps };

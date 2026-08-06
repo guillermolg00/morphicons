@@ -2,9 +2,10 @@
    bindings — the initial d comes from the pure core once and the framework
    never rewrites it, a11y and drop-in presentation props — asserted here on
    the mounted markup (RN has no renderToString). Plus the RN-only behavior:
-   reduced motion via AccessibilityInfo (best-effort query at first mount +
-   reduceMotionChanged subscription), which the web bindings get from
-   matchMedia inside the driver. */
+   with reducedMotion="user" the OS setting comes from AccessibilityInfo
+   (best-effort query + reduceMotionChanged subscription, armed lazily by the
+   first "user" instance), where the web bindings consult matchMedia inside
+   the driver. */
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { act } from "react";
@@ -156,40 +157,81 @@ describe("MorphIcon (React Native render)", () => {
 });
 
 describe("MorphIcon (React Native reduced motion)", () => {
-  test("first mount queries AccessibilityInfo and subscribes exactly once", async () => {
+  // Ordering matters in this describe: the default-policy tests assert that
+  // the accessibility bridge was NEVER touched, so they must run before any
+  // "user" test arms the module-level init.
+
+  test("default 'never': mounting touches no AccessibilityInfo at all", async () => {
     await mountIcon({ icon: ICONS.menu });
     await mountIcon({ icon: ICONS.x });
+    expect(rm.queries).toBe(0);
+    expect(rm.subscriptions).toBe(0);
+    expect(rm.listener).toBeNull();
+  });
+
+  test("default 'never': icon changes fly even with the OS setting on", async () => {
+    rm.enabled = true; // the OS setting is on, but nobody asked for it
+    const m = await mountIcon({ icon: ICONS.menu });
+    await m.rerender({ icon: ICONS.x });
+    expect(pendingFrames()).toBeGreaterThan(0);
+    settleAll();
+    expect(m.d()).toBe(ICONS.x);
+    expect(rm.queries).toBe(0);
+  });
+
+  test("'always': jumps with zero frames, bridge still untouched", async () => {
+    const m = await mountIcon({ icon: ICONS.menu, reducedMotion: "always" });
+    await m.rerender({ icon: ICONS.x, reducedMotion: "always" });
+    expect(m.d()).toBe(ICONS.x);
+    expect(pendingFrames()).toBe(0);
+    expect(rm.queries).toBe(0);
+  });
+
+  test("first 'user' instance queries AccessibilityInfo and subscribes exactly once", async () => {
+    await mountIcon({ icon: ICONS.menu, reducedMotion: "user" });
+    await mountIcon({ icon: ICONS.x, reducedMotion: "user" });
     // Module-level init: one query + one subscription for the whole run, no
-    // matter how many instances mount (file order included).
+    // matter how many "user" instances mount.
     expect(rm.queries).toBe(1);
     expect(rm.subscriptions).toBe(1);
     expect(rm.listener).not.toBeNull();
   });
 
-  test("reduce motion on: icon changes jump to the target, zero frames", async () => {
-    const m = await mountIcon({ icon: ICONS.menu });
+  test("'user' + reduce motion on: icon changes jump to the target, zero frames", async () => {
+    const m = await mountIcon({ icon: ICONS.menu, reducedMotion: "user" });
     await act(async () => {
       fireReduceMotion(true);
     });
-    await m.rerender({ icon: ICONS.x });
+    await m.rerender({ icon: ICONS.x, reducedMotion: "user" });
     expect(m.d()).toBe(ICONS.x);
     expect(pendingFrames()).toBe(0);
   });
 
-  test("reduce motion off again: icon changes fly", async () => {
-    const m = await mountIcon({ icon: ICONS.menu });
+  test("'user' + reduce motion off again: icon changes fly", async () => {
+    const m = await mountIcon({ icon: ICONS.menu, reducedMotion: "user" });
     await act(async () => {
       fireReduceMotion(true);
     });
     await act(async () => {
       fireReduceMotion(false);
     });
-    await m.rerender({ icon: ICONS.x });
+    await m.rerender({ icon: ICONS.x, reducedMotion: "user" });
     expect(pendingFrames()).toBeGreaterThan(0);
     frame(16);
     const mid = m.d();
     expect(mid).not.toBe(ICONS.menu);
     expect(mid).not.toBe(ICONS.x);
+    settleAll();
+    expect(m.d()).toBe(ICONS.x);
+  });
+
+  test("the policy is live: back to 'never' flies while the OS setting is on", async () => {
+    const m = await mountIcon({ icon: ICONS.menu, reducedMotion: "user" });
+    await act(async () => {
+      fireReduceMotion(true);
+    });
+    await m.rerender({ icon: ICONS.x, reducedMotion: "never" });
+    expect(pendingFrames()).toBeGreaterThan(0);
     settleAll();
     expect(m.d()).toBe(ICONS.x);
   });

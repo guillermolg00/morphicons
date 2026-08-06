@@ -147,3 +147,48 @@ describe("MorphIcon (Svelte client)", () => {
     expect(pendingFrames()).toBe(0);
   });
 });
+
+/** Forces the OS reduce-motion media query while `fn` runs. */
+function withOsReducedMotion(fn: () => void): void {
+  const G = globalThis as unknown as Record<string, unknown>;
+  const prev = G.matchMedia;
+  G.matchMedia = () => ({ matches: true });
+  try {
+    fn();
+  } finally {
+    G.matchMedia = prev;
+  }
+}
+
+describe("MorphIcon (Svelte reduced motion)", () => {
+  test("default 'never': icon changes fly even with the OS setting on", () => {
+    withOsReducedMotion(() => {
+      const m = mountIcon({ icon: ICONS.menu });
+      m.update({ icon: ICONS.x });
+      expect(pendingFrames()).toBeGreaterThan(0);
+      settleAll();
+      expect(m.d()).toBe(ICONS.x);
+    });
+  });
+
+  test("'user' honors the OS setting: icon changes jump, zero frames", () => {
+    withOsReducedMotion(() => {
+      const m = mountIcon({ icon: ICONS.menu, reducedMotion: "user" });
+      m.update({ icon: ICONS.x, reducedMotion: "user" });
+      expect(m.d()).toBe(ICONS.x);
+      expect(pendingFrames()).toBe(0);
+    });
+  });
+
+  test("the policy is live: 'always' jumps mid-life, back to 'never' flies", () => {
+    const m = mountIcon({ icon: ICONS.menu });
+    // Policy and icon change in the SAME update: the new policy governs it.
+    m.update({ icon: ICONS.x, reducedMotion: "always" });
+    expect(m.d()).toBe(ICONS.x);
+    expect(pendingFrames()).toBe(0);
+    m.update({ icon: ICONS.check, reducedMotion: "never" });
+    expect(pendingFrames()).toBeGreaterThan(0);
+    settleAll();
+    expect(m.d()).toBe(ICONS.check);
+  });
+});

@@ -168,14 +168,71 @@ describe("createMorph", () => {
     m.destroy();
   });
 
-  test("prefers-reduced-motion degrades morphTo to set", () => {
+  test("reducedMotion default 'never': morphTo flies even with the OS setting on", () => {
+    const prev = G.matchMedia;
     G.matchMedia = () => ({ matches: true });
     const p = fakePath();
     const m = createMorph(p.el, ICONS.menu);
     m.morphTo(ICONS.x);
+    expect(pending.size).toBe(1); // scheduler armed: it animates
+    settleAll();
+    expect(p.d).toBe(ICONS.x);
+    G.matchMedia = prev;
+    m.destroy();
+  });
+
+  test("reducedMotion 'user': prefers-reduced-motion degrades morphTo to set", () => {
+    const prev = G.matchMedia;
+    G.matchMedia = () => ({ matches: true });
+    const p = fakePath();
+    const m = createMorph(p.el, ICONS.menu, { reducedMotion: "user" });
+    m.morphTo(ICONS.x);
     expect(pending.size).toBe(0);
     expect(p.d).toBe(ICONS.x);
-    G.matchMedia = undefined;
+    G.matchMedia = prev;
+    m.destroy();
+  });
+
+  test("reducedMotion 'user' with the OS setting off: flies", () => {
+    const prev = G.matchMedia;
+    G.matchMedia = () => ({ matches: false });
+    const p = fakePath();
+    const m = createMorph(p.el, ICONS.menu, { reducedMotion: "user" });
+    m.morphTo(ICONS.x);
+    expect(pending.size).toBe(1);
+    settleAll();
+    expect(p.d).toBe(ICONS.x);
+    G.matchMedia = prev;
+    m.destroy();
+  });
+
+  test("reducedMotion 'always': jumps without consulting matchMedia", () => {
+    const prev = G.matchMedia;
+    G.matchMedia = () => {
+      throw new Error("matchMedia must not be consulted");
+    };
+    const p = fakePath();
+    const m = createMorph(p.el, ICONS.menu, { reducedMotion: "always" });
+    m.morphTo(ICONS.x);
+    expect(pending.size).toBe(0);
+    expect(p.d).toBe(ICONS.x);
+    G.matchMedia = prev;
+    m.destroy();
+  });
+
+  test("reducedMotion is live: assigning the property governs the next morphTo", () => {
+    const p = fakePath();
+    const m = createMorph(p.el, ICONS.menu);
+    expect(m.reducedMotion).toBe("never");
+    m.reducedMotion = "always";
+    m.morphTo(ICONS.x);
+    expect(p.d).toBe(ICONS.x);
+    expect(pending.size).toBe(0);
+    m.reducedMotion = "never";
+    m.morphTo(ICONS.check);
+    expect(pending.size).toBe(1);
+    settleAll();
+    expect(p.d).toBe(ICONS.check);
     m.destroy();
   });
 

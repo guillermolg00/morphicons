@@ -148,3 +148,48 @@ describe("MorphIcon (Vue client)", () => {
     expect(pendingFrames()).toBe(0);
   });
 });
+
+/** Forces the OS reduce-motion media query while `fn` runs. */
+async function withOsReducedMotion(fn: () => Promise<void>): Promise<void> {
+  const G = globalThis as unknown as Record<string, unknown>;
+  const prev = G.matchMedia;
+  G.matchMedia = () => ({ matches: true });
+  try {
+    await fn();
+  } finally {
+    G.matchMedia = prev;
+  }
+}
+
+describe("MorphIcon (Vue reduced motion)", () => {
+  test("default 'never': icon changes fly even with the OS setting on", async () => {
+    await withOsReducedMotion(async () => {
+      const m = mountIcon({ icon: ICONS.menu });
+      await m.update({ icon: ICONS.x });
+      expect(pendingFrames()).toBeGreaterThan(0);
+      settleAll();
+      expect(m.d()).toBe(ICONS.x);
+    });
+  });
+
+  test("'user' honors the OS setting: icon changes jump, zero frames", async () => {
+    await withOsReducedMotion(async () => {
+      const m = mountIcon({ icon: ICONS.menu, reducedMotion: "user" });
+      await m.update({ icon: ICONS.x, reducedMotion: "user" });
+      expect(m.d()).toBe(ICONS.x);
+      expect(pendingFrames()).toBe(0);
+    });
+  });
+
+  test("the policy is live: 'always' jumps mid-life, back to 'never' flies", async () => {
+    const m = mountIcon({ icon: ICONS.menu });
+    // Policy and icon change in the SAME flush: the new policy governs it.
+    await m.update({ icon: ICONS.x, reducedMotion: "always" });
+    expect(m.d()).toBe(ICONS.x);
+    expect(pendingFrames()).toBe(0);
+    await m.update({ icon: ICONS.check, reducedMotion: "never" });
+    expect(pendingFrames()).toBeGreaterThan(0);
+    settleAll();
+    expect(m.d()).toBe(ICONS.check);
+  });
+});

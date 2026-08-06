@@ -32,7 +32,7 @@ import {
   X,
   Zap,
 } from "lucide";
-import { createMorph } from "../src/dom/index";
+import { createMorph, type ReducedMotionMode } from "../src/dom/index";
 import {
   allocOutputs,
   buildPlan,
@@ -142,6 +142,7 @@ let cur: Entry = REGISTRY[0];
 let prev: Entry | null = null;
 let mode: "polar" | "linear" = "polar";
 let preset: SpringPreset = "snappy";
+let rm: ReducedMotionMode = "never";
 let scrubActive = false;
 
 const m = createMorph(pathEl, cur.data);
@@ -200,7 +201,11 @@ function linPlanTo(next: Entry): void {
 }
 
 function linMorphTo(next: Entry): void {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  // Same reduced-motion policy as the real driver (the control drives both).
+  if (
+    rm === "always" ||
+    (rm === "user" && matchMedia("(prefers-reduced-motion: reduce)").matches)
+  ) {
     linReset();
     pathEl.setAttribute("d", dOf(next));
     return;
@@ -382,6 +387,10 @@ segmented("mode", (v) => {
 segmented("preset", (v) => {
   preset = (v in SPRING_PRESETS ? v : "snappy") as SpringPreset;
   quiesce();
+});
+segmented("rm", (v) => {
+  rm = v === "user" || v === "always" ? v : "never";
+  m.reducedMotion = rm; // live on the real driver; linMorphTo reads `rm`
 });
 
 slider.addEventListener("input", () => {
