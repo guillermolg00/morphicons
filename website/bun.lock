@@ -7,7 +7,7 @@
       "dependencies": {
         "@vercel/analytics": "^2.0.1",
         "lucide": "^1.28.0",
-        "morphicons": "1.4.1",
+        "morphicons": "1.4.2",
         "next": "16.2.12",
         "react": "19.2.8",
         "react-dom": "19.2.8",
@@ -673,7 +673,7 @@
 
     "minimist": ["minimist@1.2.8", "", {}, "sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA=="],
 
-    "morphicons": ["morphicons@1.4.1", "", { "peerDependencies": { "react": ">=18", "react-native": ">=0.71", "react-native-svg": ">=14", "svelte": ">=5", "vue": ">=3.3" }, "optionalPeers": ["react", "react-native", "react-native-svg", "svelte", "vue"] }, "sha512-l+F51rwvCAvuTnVq9eKrrwjd2oM40dW/fQ6fWQyz2FVSwB9Gq+mcnznJQPeFpenDvBY9qFEg17WTTCwChBdabw=="],
+    "morphicons": ["morphicons@1.4.2", "", { "peerDependencies": { "react": ">=18", "react-native": ">=0.71", "react-native-svg": ">=14", "svelte": ">=5", "vue": ">=3.3" }, "optionalPeers": ["react", "react-native", "react-native-svg", "svelte", "vue"] }, "sha512-kw7JF+2PcDCo12XhHRq0Yumv2o7QNY88kHIpfm93W21lnhIALpI7vxAnbbGfjaK1Wanzo1+Q3NQJETjXTxO2dg=="],
 
     "ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
 
