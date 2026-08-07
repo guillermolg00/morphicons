@@ -111,14 +111,14 @@
       "name": "core (gzip — anti-regression tripwire, see README)",
       "path": "dist/index.js",
       "import": "*",
-      "limit": "7 KB",
+      "limit": "7.6 KB",
       "gzip": true
     },
     {
       "name": "core + dom (createMorph + scheduler)",
       "path": "dist/dom.js",
       "import": "*",
-      "limit": "7.5 KB",
+      "limit": "8.6 KB",
       "gzip": true
     },
     {
@@ -128,7 +128,7 @@
       "ignore": [
         "react"
       ],
-      "limit": "8.5 KB",
+      "limit": "9.5 KB",
       "gzip": true
     },
     {
@@ -140,7 +140,7 @@
         "react-native",
         "react-native-svg"
       ],
-      "limit": "9 KB",
+      "limit": "9.9 KB",
       "gzip": true
     },
     {
@@ -150,7 +150,7 @@
       "ignore": [
         "vue"
       ],
-      "limit": "8.5 KB",
+      "limit": "9.5 KB",
       "gzip": true
     },
     {
@@ -160,7 +160,7 @@
       "ignore": [
         "svelte"
       ],
-      "limit": "8 KB",
+      "limit": "9.2 KB",
       "gzip": true
     },
     {

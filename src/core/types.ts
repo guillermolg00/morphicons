@@ -8,7 +8,10 @@ export type IconNodeAttrs = Record<string, string | number | undefined>;
  *  work just the same. */
 export type IconNode = ReadonlyArray<readonly [string, IconNodeAttrs]>;
 
-/** Input accepted by the core: an IconNode or a raw `d` attribute.
+/** Input accepted by the core: an IconNode, a raw `d` attribute, or an SVG
+ *  markup string (an Iconify body, a full `<svg>`, a shadcn `<path>` …).
+ *  A markup string is disambiguated from a `d` by its leading "<": it is
+ *  parsed, scanned for morphability and re-gridded onto 24 via its viewBox.
  *  (SVGElement is resolved in the dom layer — the core never touches DOM.) */
 export type IconInput = IconNode | string;
 

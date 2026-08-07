@@ -181,6 +181,18 @@ m.destroy();
 
 Truly interruptible: a `morphTo` mid-flight re-plans from the current intermediate shape while preserving the spring's velocity — click spam never jumps. A single global `requestAnimationFrame` drives all instances.
 
+`createMorph` picks its write strategy from the element: a `<path>` gets the `d` attribute; **any other element** — a `<span>`/`<div>` rendered as a CSS mask, the UnoCSS `presetIcons` / Iconify `i-lucide-*` model with no `<path>` in the DOM — is driven as a `mask-image`. So the same call animates a mask-styled icon in place, keeping your `size-*` / `text-*` classes (it sets `background-color: currentColor` and the mask props on first paint, so a bare `<span class="size-5 text-current">` works too):
+
+```ts
+import { createMorph } from "morphicons/dom";
+
+// menuBody / xBody: Iconify bodies — any SVG markup, d string or IconNode works
+const m = createMorph(spanEl, menuBody); // spanEl: <span class="size-5 text-current">
+m.morphTo(xBody, "snappy");
+```
+
+Cost: a `<path>` gets a cheap `d` write, but a mask element is handed a fresh data-URI `mask-image` every frame — re-parsed and re-rasterized by the browser, not GPU-composited. Fine for the odd toggle (menu↔close, chevrons, play↔pause); for a long list keep the inline-SVG bindings.
+
 ### Pure core (no DOM)
 
 ```ts
@@ -192,15 +204,15 @@ interpPolar(plan, 0.5, out);                                 // t ∈ [0, 1]
 const d = serialize(out, plan.items.map(it => it.closed));   // `d` attribute
 ```
 
-Accepts `IconNode` (Lucide's data format, structurally typed — Lucide is neither a dependency nor a peer) or a raw `d` attribute. Tabler, Heroicons, Iconoir and custom paths work the same.
+Accepts an `IconNode` (Lucide's data format, structurally typed — Lucide is neither a dependency nor a peer), a raw `d` attribute, or an **SVG markup string** (an Iconify body, a full `<svg>`, a shadcn `<path>`). Tabler, Heroicons, Iconoir and custom paths work the same.
 
 ## Icon library compatibility
 
 morphicons has no per-library adapters — any icon set that meets these requirements works out of the box:
 
-1. **Stroke-drawn icons.** The geometry must be the stroked centerline (`fill="none"`, color via `stroke`). The whole pipeline — resampling, correspondence, in-flight polylines — assumes strokes; filled or outlined-fill glyphs (Material Symbols, Bootstrap Icons, Remix Icon, Phosphor, Heroicons *solid*) parse fine but won't read correctly in transit.
-2. **Geometry available as data.** Either a raw `d` attribute per icon, or a `[tag, attrs][]` node list (Lucide's IconNode shape) using only `path`, `line`, `circle`, `ellipse`, `rect`, `polyline`, `polygon`. No `<g>` wrappers and no `transform` attributes — coordinates must be literal. Any other tag throws a clear error.
-3. **A shared coordinate space per pair.** Both endpoints of a morph must live on the same grid. Lucide, Tabler, Heroicons and Iconoir all draw on 24×24 — that's why cross-library morphs just work. For a pack on another canvas (Heroicons *solid* on 20, Carbon on 32, Teenyicons on 15), re-grid it once with `fitIcon`:
+1. **Stroke-drawn icons.** The geometry must be the stroked centerline (`fill="none"`, color via `stroke`). The whole pipeline — resampling, correspondence, in-flight polylines — assumes strokes; filled or outlined-fill glyphs (Material Symbols, Bootstrap Icons, Remix Icon, Phosphor, Heroicons *solid*) can't read correctly in transit. An IconNode or `d` is trusted as-is, but a fill-drawn **SVG markup** icon (a body with no stroke) is rejected outright rather than morphed as garbage.
+2. **Geometry available as data.** A raw `d` attribute, a `[tag, attrs][]` node list (Lucide's IconNode shape), or an **SVG markup string** — an Iconify body or a full `<svg>` — which is parsed to that node list for you: non-rendered containers (`<defs>`, `<mask>`, …) are dropped, and a `transform` or an element outside `path`/`line`/`circle`/`ellipse`/`rect`/`polyline`/`polygon` throws a clear error (coordinates must be literal — the core has no transform stage).
+3. **A shared coordinate space per pair.** Both endpoints of a morph must live on the same grid. Lucide, Tabler, Heroicons and Iconoir all draw on 24×24 — that's why cross-library morphs just work. SVG markup carrying a `viewBox` is re-gridded onto 24 **automatically**; for a `d` or IconNode on another canvas (Heroicons *solid* on 20, Carbon on 32, Teenyicons on 15), re-grid it once with `fitIcon`:
 
    ```ts
    import { fitIcon } from "morphicons";
@@ -369,13 +381,15 @@ CI budget (size-limit, gzip) as an anti-regression tripwire — gates carry ~10%
 
 | entry | measured | gate |
 |---|---|---|
-| `morphicons` (core) | 6.60 KB | 7 KB |
-| `morphicons/dom` (core + driver) | 7.04 KB | 7.5 KB |
-| `morphicons/react` (all, react external) | 7.89 KB | 8.5 KB |
-| `morphicons/react-native` (all, react/rn/rnsvg external) | 8.25 KB | 9 KB |
-| `morphicons/vue` (all, vue external) | 7.93 KB | 8.5 KB |
-| `morphicons/svelte` TS half (all, svelte external) | 7.54 KB | 8 KB |
-| `MorphIcon.svelte` (ships as source, consumer-compiled) | 1.25 KB | 1.4 KB |
+| `morphicons` (core) | 7.20 KB | 7.6 KB |
+| `morphicons/dom` (core + driver) | 8.18 KB | 8.6 KB |
+| `morphicons/react` (all, react external) | 9.03 KB | 9.5 KB |
+| `morphicons/react-native` (all, react/rn/rnsvg external) | 9.41 KB | 9.9 KB |
+| `morphicons/vue` (all, vue external) | 9.05 KB | 9.5 KB |
+| `morphicons/svelte` TS half (all, svelte external) | 8.74 KB | 9.2 KB |
+| `MorphIcon.svelte` (ships as source, consumer-compiled) | 1.26 KB | 1.4 KB |
+
+The SVG-markup input parser (in core, so `IconInput` accepts markup everywhere) and the CSS-mask writer (in the driver) account for the step up from the previous release; both are opt-in at runtime — an app that only passes IconNodes to a `<path>` pays for the code but never runs it.
 
 ## Playground
 

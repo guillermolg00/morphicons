@@ -5,7 +5,7 @@
    touches window at import time. */
 
 import { allocOutputs, interpPolar } from "../core/interpolate";
-import { iconToCubics } from "../core/normalize";
+import { iconToCubics, isSvgMarkup } from "../core/normalize";
 import { buildPlan, type MorphPlan } from "../core/plan";
 import { resampleIcon } from "../core/resample";
 import { cubicsToPathD, serialize } from "../core/serialize";
@@ -16,10 +16,31 @@ declare function requestAnimationFrame(cb: (ts: number) => void): number;
 declare function cancelAnimationFrame(id: number): void;
 declare const matchMedia: ((query: string) => { matches: boolean }) | undefined;
 
+/** The subset of an element's inline style the mask writer touches —
+ *  structural so the driver still compiles without `lib: DOM` (a real
+ *  HTMLElement's `.style` satisfies it). */
+export interface MaskStyle {
+  maskImage: string;
+  webkitMaskImage: string;
+  maskRepeat: string;
+  webkitMaskRepeat: string;
+  maskSize: string;
+  webkitMaskSize: string;
+  maskPosition: string;
+  webkitMaskPosition: string;
+  backgroundColor: string;
+}
+
 /** Target element, structurally typed: any object with setAttribute works
- *  (a real SVGPathElement, or a fake in tests). */
+ *  (a real SVGPathElement, or a fake in tests). `createMorph` picks its write
+ *  strategy from `tagName`: a `<path>` — or an object without a tagName (a
+ *  test fake, the React Native shim) — gets the `d` attribute; any other
+ *  element (a `<span>`/`<div>` styled the UnoCSS/Iconify way) is driven as a
+ *  CSS `mask-image` and needs `style`. */
 export interface PathEl {
   setAttribute(name: string, value: string): void;
+  readonly tagName?: string;
+  style?: MaskStyle;
 }
 
 /** Morph physics: named preset or custom spring. */
@@ -37,6 +58,9 @@ export type ReducedMotionMode = "never" | "user" | "always";
 export interface CreateMorphOptions {
   /** Reduced-motion policy; also live via the `reducedMotion` property. */
   reducedMotion?: ReducedMotionMode;
+  /** Mask-driven targets only (a non-`<path>` element): stroke width of the
+   *  rasterized mask SVG. Default 2 (Lucide). Ignored for `<path>` targets. */
+  strokeWidth?: number;
 }
 
 export interface Morph {
@@ -121,7 +145,8 @@ function sampledOf(icon: IconInput): Sampled[] {
  *  hydration matches, see fmtCanon in core/serialize). Exported because it
  *  is what a binding renders at SSR/rest before any runtime exists. */
 export function canonicalD(icon: IconInput): string {
-  if (typeof icon === "string") return icon;
+  if (typeof icon === "string")
+    return isSvgMarkup(icon) ? cubicsToPathD(iconToCubics(icon)) : icon;
   let d = canon.get(icon);
   if (!d) {
     d = cubicsToPathD(iconToCubics(icon));
@@ -154,9 +179,44 @@ function resolveSpring(s?: SpringPreset | MorphOptions): { k: number; c: number 
   return { k: s?.stiffness ?? d.k, c: s?.damping ?? d.c };
 }
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** The per-frame writer for `el`. A `<path>` — or an object without a tagName
+ *  (a test fake, the RN shim) — receives the `d` attribute, the cheap path.
+ *  Any other element is rendered as a CSS `mask-image` data URI (the
+ *  UnoCSS/Iconify usage: no `<path>` in the DOM). The static mask props are
+ *  set once on first paint; the geometry is always on the 24 grid (input is
+ *  auto-fit), so the mask viewBox is fixed.
+ *
+ *  Cost: a fresh data URI each frame is re-parsed and re-rasterized by the
+ *  browser and is not GPU-composited — fine for the odd toggle, not a long
+ *  list. See README "Icon library compatibility". */
+function makePaint(el: PathEl, strokeWidth: number): (d: string) => void {
+  const tag = el.tagName?.toLowerCase();
+  if (!tag || tag === "path") return (d) => el.setAttribute("d", d);
+  const head =
+    `<svg xmlns="${SVG_NS}" viewBox="0 0 24 24" fill="none" stroke="#000"` +
+    ` stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">`;
+  let init = false;
+  return (d) => {
+    const s = el.style;
+    if (!s) return;
+    if (!init) {
+      init = true;
+      s.maskRepeat = s.webkitMaskRepeat = "no-repeat";
+      s.maskSize = s.webkitMaskSize = "100% 100%";
+      s.maskPosition = s.webkitMaskPosition = "center";
+      s.backgroundColor = "currentColor";
+    }
+    const url = `url("data:image/svg+xml,${encodeURIComponent(`${head}<path d="${d}"/></svg>`)}")`;
+    s.maskImage = s.webkitMaskImage = url;
+  };
+}
+
 // ---------------------------------------------------------------------------
 
-/** Creates the morph instance over a `<path>` and paints the initial icon. */
+/** Creates the morph instance over a `<path>` (or a CSS-mask element) and
+ *  paints the initial icon. */
 export function createMorph(
   el: PathEl,
   icon: IconInput,
@@ -164,6 +224,7 @@ export function createMorph(
 ): Morph {
   const spring = new Spring();
   let reducedMotion: ReducedMotionMode = options?.reducedMotion ?? "never";
+  const paint = makePaint(el, options?.strokeWidth ?? 2);
   let target = icon;
   let rest = true; // the element's d is target's canonical one
   let plan: MorphPlan | null = null;
@@ -173,7 +234,7 @@ export function createMorph(
   let flying = false; // ticker registered (spring running)
   let dead = false;
 
-  el.setAttribute("d", canonicalD(icon));
+  paint(canonicalD(icon));
 
   const render = (tt: number): void => {
     const p = plan;
@@ -182,7 +243,7 @@ export function createMorph(
     if (!p || !o || !cl) return;
     t = tt;
     interpPolar(p, tt, o);
-    el.setAttribute("d", serialize(o, cl));
+    paint(serialize(o, cl));
   };
 
   const stop = (): void => {
@@ -208,7 +269,7 @@ export function createMorph(
     t = 1;
     spring.x = 1;
     spring.v = 0;
-    el.setAttribute("d", canonicalD(target));
+    paint(canonicalD(target));
   };
 
   /** The current shape as plan source: the at-rest icon, or the rendered
