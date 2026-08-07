@@ -181,18 +181,6 @@ m.destroy();
 
 Truly interruptible: a `morphTo` mid-flight re-plans from the current intermediate shape while preserving the spring's velocity — click spam never jumps. A single global `requestAnimationFrame` drives all instances.
 
-`createMorph` picks its write strategy from the element: a `<path>` gets the `d` attribute; **any other element** — a `<span>`/`<div>` rendered as a CSS mask, the UnoCSS `presetIcons` / Iconify `i-lucide-*` model with no `<path>` in the DOM — is driven as a `mask-image`. So the same call animates a mask-styled icon in place, keeping your `size-*` / `text-*` classes (it sets `background-color: currentColor` and the mask props on first paint, so a bare `<span class="size-5 text-current">` works too):
-
-```ts
-import { createMorph } from "morphicons/dom";
-
-// menuBody / xBody: Iconify bodies — any SVG markup, d string or IconNode works
-const m = createMorph(spanEl, menuBody); // spanEl: <span class="size-5 text-current">
-m.morphTo(xBody, "snappy");
-```
-
-Cost: a `<path>` gets a cheap `d` write, but a mask element is handed a fresh data-URI `mask-image` every frame — re-parsed and re-rasterized by the browser, not GPU-composited. Fine for the odd toggle (menu↔close, chevrons, play↔pause); for a long list keep the inline-SVG bindings.
-
 ### Pure core (no DOM)
 
 ```ts
@@ -204,15 +192,51 @@ interpPolar(plan, 0.5, out);                                 // t ∈ [0, 1]
 const d = serialize(out, plan.items.map(it => it.closed));   // `d` attribute
 ```
 
-Accepts an `IconNode` (Lucide's data format, structurally typed — Lucide is neither a dependency nor a peer), a raw `d` attribute, or an **SVG markup string** (an Iconify body, a full `<svg>`, a shadcn `<path>`). Tabler, Heroicons, Iconoir and custom paths work the same.
+Accepts `IconNode` (Lucide's data format, structurally typed — Lucide is neither a dependency nor a peer) or a raw `d` attribute. Tabler, Heroicons, Iconoir and custom paths work the same.
+
+## Format adapters — `morphicons/adapters`
+
+The core has exactly two structural contracts: `IconInput` on the way in (an `IconNode` or a `d` string) and `PathEl` on the way out (anything with `setAttribute` — the same contract that lets the React Native binding drive `setNativeProps`). A **format adapter** converts a foreign icon representation into one of those two contracts. All of them live in one opt-in entry, so the unit of payment is the import: core, driver and bindings never grow for a capability you didn't ask for, and inside the entry each adapter is an independent module — a named import tree-shakes to just that adapter, pinned by per-export size gates in CI. Adapters are per *format*, never per vendor: there is no `/iconify` and never will be.
+
+### `svgToIcon` — SVG markup in
+
+For icons that exist as markup rather than data: an Iconify body from `@iconify-json/*` (what UnoCSS `presetIcons` and the Tailwind icon plugins consume), a full `<svg>` copied from a website, a `<path>` from the shadcn registry. One call turns it into an `IconInput` any entry accepts:
+
+```ts
+import { svgToIcon } from "morphicons/adapters";
+
+// Parse ONCE, at module scope — reuse the reference so the plan cache holds.
+const MENU = svgToIcon(menuBody); // '<path stroke="currentColor" d="M4 5h16…"/>'
+const X = svgToIcon(xBody);       // works in createMorph and all four bindings
+```
+
+Everything else happens under the hood: non-rendered containers (`<defs>`, `<mask>`, `<clipPath>`, `<symbol>`) are stripped, the morphability scan rejects what can't honestly morph (a fill-drawn icon with no stroke — Material Symbols style — a `transform`, an element outside the seven stroke primitives) with a clear error at parse time, and when the markup carries a `viewBox` the geometry is re-gridded onto 24 via [`fitIcon`](#icon-library-compatibility) automatically, so off-grid collections just work.
+
+### `maskTarget` — CSS-mask elements out
+
+For apps that render icons as CSS masks — UnoCSS `presetIcons`, `@iconify/tailwind`, `@egoist/tailwindcss-icons` (`i-lucide-*`, `icon-[lucide-x]`): the icon is a `mask-image` data URI on a `<span>`/`<div>`, with **no `<path>` in the DOM** to write to. `maskTarget` creates a hidden pair of referenced `<svg><mask><path>` buffers once, points the element's mask at them, and hands the driver a `PathEl` whose `d` writes land on that real geometry — so the element morphs in place, keeping your `size-*`/`text-*` classes. Two engine traps shaped this mechanism (see `docs/adr/0002`): a data-URI mask swapped per frame never decodes in time in Chromium (blank flight), and WebKit doesn't repaint when a referenced mask's *content* mutates (frozen flight) — hence the pair: each write flips `mask-image` between the two buffers, which forces re-resolution everywhere.
+
+```ts
+import { maskTarget } from "morphicons/adapters";
+import { createMorph } from "morphicons/dom";
+
+const target = maskTarget(spanEl);     // spanEl: class="size-5 text-current"
+const m = createMorph(target, MENU);
+m.morphTo(X, "snappy");                // full Morph handle: set/seek/progress/destroy
+// on unmount: m.destroy(); target.dispose();
+```
+
+It *is* `createMorph` — only the write target differs — so springs, reduced motion and mid-flight interruption behave identically. On setup it sets `background-color: currentColor`, so a bare `<span>` works with no icon class (`{ paint: false }` keeps an existing `bg-*`; `strokeWidth` and `viewBox` are options). The returned target adds `dispose()` — call it after `morph.destroy()` when the element unmounts, so the hidden mask nodes go with it.
+
+**Cost.** A live inline `<path>` gets the cheapest possible write; a mask element additionally makes the browser re-rasterize the mask and repaint the masked box every frame (main thread, no compositor-only path). Great for toggles and short lists (menu↔close, chevrons, play↔pause); for icon-heavy views, the inline-SVG bindings remain the leanest option — same styling, one less indirection.
 
 ## Icon library compatibility
 
 morphicons has no per-library adapters — any icon set that meets these requirements works out of the box:
 
-1. **Stroke-drawn icons.** The geometry must be the stroked centerline (`fill="none"`, color via `stroke`). The whole pipeline — resampling, correspondence, in-flight polylines — assumes strokes; filled or outlined-fill glyphs (Material Symbols, Bootstrap Icons, Remix Icon, Phosphor, Heroicons *solid*) can't read correctly in transit. An IconNode or `d` is trusted as-is, but a fill-drawn **SVG markup** icon (a body with no stroke) is rejected outright rather than morphed as garbage.
-2. **Geometry available as data.** A raw `d` attribute, a `[tag, attrs][]` node list (Lucide's IconNode shape), or an **SVG markup string** — an Iconify body or a full `<svg>` — which is parsed to that node list for you: non-rendered containers (`<defs>`, `<mask>`, …) are dropped, and a `transform` or an element outside `path`/`line`/`circle`/`ellipse`/`rect`/`polyline`/`polygon` throws a clear error (coordinates must be literal — the core has no transform stage).
-3. **A shared coordinate space per pair.** Both endpoints of a morph must live on the same grid. Lucide, Tabler, Heroicons and Iconoir all draw on 24×24 — that's why cross-library morphs just work. SVG markup carrying a `viewBox` is re-gridded onto 24 **automatically**; for a `d` or IconNode on another canvas (Heroicons *solid* on 20, Carbon on 32, Teenyicons on 15), re-grid it once with `fitIcon`:
+1. **Stroke-drawn icons.** The geometry must be the stroked centerline (`fill="none"`, color via `stroke`). The whole pipeline — resampling, correspondence, in-flight polylines — assumes strokes; filled or outlined-fill glyphs (Material Symbols, Bootstrap Icons, Remix Icon, Phosphor, Heroicons *solid*) parse fine but won't read correctly in transit.
+2. **Geometry available as data.** Either a raw `d` attribute per icon, or a `[tag, attrs][]` node list (Lucide's IconNode shape) using only `path`, `line`, `circle`, `ellipse`, `rect`, `polyline`, `polygon`. No `<g>` wrappers and no `transform` attributes — coordinates must be literal. Any other tag throws a clear error.
+3. **A shared coordinate space per pair.** Both endpoints of a morph must live on the same grid. Lucide, Tabler, Heroicons and Iconoir all draw on 24×24 — that's why cross-library morphs just work. For a pack on another canvas (Heroicons *solid* on 20, Carbon on 32, Teenyicons on 15), re-grid it once with `fitIcon`:
 
    ```ts
    import { fitIcon } from "morphicons";
@@ -381,15 +405,18 @@ CI budget (size-limit, gzip) as an anti-regression tripwire — gates carry ~10%
 
 | entry | measured | gate |
 |---|---|---|
-| `morphicons` (core) | 7.20 KB | 7.6 KB |
-| `morphicons/dom` (core + driver) | 8.18 KB | 8.6 KB |
-| `morphicons/react` (all, react external) | 9.03 KB | 9.5 KB |
-| `morphicons/react-native` (all, react/rn/rnsvg external) | 9.41 KB | 9.9 KB |
-| `morphicons/vue` (all, vue external) | 9.05 KB | 9.5 KB |
-| `morphicons/svelte` TS half (all, svelte external) | 8.74 KB | 9.2 KB |
+| `morphicons` (core) | 6.60 KB | 7 KB |
+| `morphicons/dom` (core + driver) | 7.12 KB | 7.5 KB |
+| `morphicons/adapters` (aggregate — grows by design) | 4.03 KB | 4.4 KB |
+| `adapters` › `{ svgToIcon }` alone | 3.34 KB | 3.7 KB |
+| `adapters` › `{ maskTarget }` alone | 0.70 KB | 0.8 KB |
+| `morphicons/react` (all, react external) | 8.01 KB | 8.5 KB |
+| `morphicons/react-native` (all, react/rn/rnsvg external) | 8.37 KB | 9 KB |
+| `morphicons/vue` (all, vue external) | 8.04 KB | 8.5 KB |
+| `morphicons/svelte` TS half (all, svelte external) | 7.66 KB | 8 KB |
 | `MorphIcon.svelte` (ships as source, consumer-compiled) | 1.26 KB | 1.4 KB |
 
-The SVG-markup input parser (in core, so `IconInput` accepts markup everywhere) and the CSS-mask writer (in the driver) account for the step up from the previous release; both are opt-in at runtime — an app that only passes IconNodes to a `<path>` pays for the code but never runs it.
+The adapters entry carries **two kinds of gate**: the aggregate (allowed to grow as adapters are added) and one per named export, which pins each adapter as independently tree-shakeable — if two adapters ever couple, the per-export gate trips in CI. Standalone, `{ svgToIcon }` measures 3.34 KB because auto-fit drags the core's lowering machinery; an app that already imports the core shares that chunk and pays ~0.4 KB incremental.
 
 ## Playground
 

@@ -51,6 +51,10 @@
       "types": "./dist/dom.d.ts",
       "default": "./dist/dom.js"
     },
+    "./adapters": {
+      "types": "./dist/adapters.d.ts",
+      "default": "./dist/adapters.js"
+    },
     "./react": {
       "types": "./dist/react.d.ts",
       "default": "./dist/react.js"
@@ -111,14 +115,35 @@
       "name": "core (gzip — anti-regression tripwire, see README)",
       "path": "dist/index.js",
       "import": "*",
-      "limit": "7.6 KB",
+      "limit": "7 KB",
       "gzip": true
     },
     {
       "name": "core + dom (createMorph + scheduler)",
       "path": "dist/dom.js",
       "import": "*",
-      "limit": "8.6 KB",
+      "limit": "7.5 KB",
+      "gzip": true
+    },
+    {
+      "name": "adapters (aggregate — grows by design, see per-export gates)",
+      "path": "dist/adapters.js",
+      "import": "*",
+      "limit": "4.4 KB",
+      "gzip": true
+    },
+    {
+      "name": "adapters › svgToIcon (per-export shakeability gate)",
+      "path": "dist/adapters.js",
+      "import": "{ svgToIcon }",
+      "limit": "3.7 KB",
+      "gzip": true
+    },
+    {
+      "name": "adapters › maskTarget (per-export shakeability gate)",
+      "path": "dist/adapters.js",
+      "import": "{ maskTarget }",
+      "limit": "0.8 KB",
       "gzip": true
     },
     {
@@ -128,7 +153,7 @@
       "ignore": [
         "react"
       ],
-      "limit": "9.5 KB",
+      "limit": "8.5 KB",
       "gzip": true
     },
     {
@@ -140,7 +165,7 @@
         "react-native",
         "react-native-svg"
       ],
-      "limit": "9.9 KB",
+      "limit": "9 KB",
       "gzip": true
     },
     {
@@ -150,7 +175,7 @@
       "ignore": [
         "vue"
       ],
-      "limit": "9.5 KB",
+      "limit": "8.5 KB",
       "gzip": true
     },
     {
@@ -160,7 +185,7 @@
       "ignore": [
         "svelte"
       ],
-      "limit": "9.2 KB",
+      "limit": "8 KB",
       "gzip": true
     },
     {
