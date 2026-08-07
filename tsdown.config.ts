@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: "src/index.ts",
     dom: "src/dom/index.ts",
+    adapters: "src/adapters/index.ts",
     react: "src/react/index.tsx",
     "react-native": "src/react-native/index.tsx",
     vue: "src/vue/index.ts",
