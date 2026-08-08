@@ -230,6 +230,44 @@ It *is* `createMorph` — only the write target differs — so springs, reduced 
 
 **Cost.** A live inline `<path>` gets the cheapest possible write; a mask element additionally makes the browser re-rasterize the mask and repaint the masked box every frame (main thread, no compositor-only path). Great for toggles and short lists (menu↔close, chevrons, play↔pause); for icon-heavy views, the inline-SVG bindings remain the leanest option — same styling, one less indirection.
 
+### `canvasTarget` — 2D canvas out
+
+For surfaces where the DOM never enters: **the icon stops being a document node and becomes pixels you own.** The platform does the heavy lifting — `Path2D` parses `d` strings natively — so every frame is one `stroke(new Path2D(d))` on whatever you hand it: an `HTMLCanvasElement`, an `OffscreenCanvas`, or a bare 2D context (what a worker, or a host that already owns the context, has in hand).
+
+```ts
+import { canvasTarget } from "morphicons/adapters";
+import { createMorph } from "morphicons/dom";
+
+const m = createMorph(canvasTarget(canvas), MENU);
+m.morphTo(X, "snappy");
+// the canvas is a live texture: gl.texImage2D(gl.TEXTURE_2D, ..., canvas)
+```
+
+Once the icon is pixels, everything the SVG model can't reach opens up:
+
+- **Canvas-first apps** with no DOM to put an icon in: Konva, Fabric.js, PixiJS, games, chart draws, tldraw-style editors.
+- **`OffscreenCanvas` + workers**: the whole morph runs off the main thread.
+- **Native export**: `toBlob()` for PNG sprites, `captureStream()` + MediaRecorder for the morph as a video asset.
+- **An animated favicon**: draw, `toDataURL()`, swap the `<link>`.
+- **HUDs over video or fullscreen surfaces**: same buffer as the player or the game, no DOM layer on top.
+- **WebGL textures**: the canvas is a ready `texImage2D` source — shader effects over live icons are one branch of this list, not its headline.
+- Down the road, the same gesture (`PathEl` → `Path2D`) is `PathEl` → `SkPath`: a react-native-skia / CanvasKit target would consume the identical contract.
+
+It *is* `createMorph` — springs, mid-flight interruption and reduced motion behave identically. The target maps the icon grid onto whatever backing store it finds, per write: min-side scale, centered (the canvas equivalent of `preserveAspectRatio="xMidYMid meet"`), so non-square canvases letterbox and devicePixelRatio is simply whatever you sized the backing store to. Color cascades: the `color` option wins; without it, a CSS-styled canvas contributes its computed `color` (the moral equivalent of `currentColor`, which canvas lacks — read lazily, once); where CSS can't reach (OffscreenCanvas, workers) the context's current `strokeStyle` stands, which is the idiomatic canvas contract. `strokeWidth` and `viewBox` mirror the other adapters; `clear: false` skips the per-frame clear for manual compositing and trails.
+
+**Hosts with their own render loop.** Don't hand a Konva/Chart.js/game context to a morph — the driver writes on its own rAF and the two clocks fight over the frame. Give the icon a small dedicated canvas and composite it into the scene (`drawImage`, `Konva.Image`, a texture upload), with `onWrite` as the dirty signal:
+
+```ts
+const icon = new OffscreenCanvas(64, 64);
+const target = canvasTarget(icon, {
+  color: "#e8eaed",                      // CSS can't reach an OffscreenCanvas
+  onWrite: () => { textureDirty = true } // re-upload / blit on the host's next frame
+});
+const m = createMorph(target, PLAY);
+```
+
+**Cost.** The cheapest target of the three: no layout, no DOM paint — one native path parse and one stroke rasterization per frame, on a canvas that is typically small. 0.48 KB gzip standalone, the lightest adapter yet.
+
 ## Icon library compatibility
 
 morphicons has no per-library adapters — any icon set that meets these requirements works out of the box:
@@ -407,9 +445,10 @@ CI budget (size-limit, gzip) as an anti-regression tripwire — gates carry ~10%
 |---|---|---|
 | `morphicons` (core) | 6.60 KB | 7 KB |
 | `morphicons/dom` (core + driver) | 7.12 KB | 7.5 KB |
-| `morphicons/adapters` (aggregate — grows by design) | 4.03 KB | 4.4 KB |
+| `morphicons/adapters` (aggregate — grows by design) | 4.32 KB | 4.8 KB |
 | `adapters` › `{ svgToIcon }` alone | 3.34 KB | 3.7 KB |
 | `adapters` › `{ maskTarget }` alone | 0.70 KB | 0.8 KB |
+| `adapters` › `{ canvasTarget }` alone | 0.48 KB | 0.55 KB |
 | `morphicons/react` (all, react external) | 8.01 KB | 8.5 KB |
 | `morphicons/react-native` (all, react/rn/rnsvg external) | 8.37 KB | 9 KB |
 | `morphicons/vue` (all, vue external) | 8.04 KB | 8.5 KB |

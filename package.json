@@ -1,6 +1,6 @@
 {
   "name": "morphicons",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Universal morphing for stroke-based icons with spring physics — zero runtime dependencies",
   "license": "MIT",
   "author": "Guillermo (https://guillermolg.com)",
@@ -129,7 +129,7 @@
       "name": "adapters (aggregate — grows by design, see per-export gates)",
       "path": "dist/adapters.js",
       "import": "*",
-      "limit": "4.4 KB",
+      "limit": "4.8 KB",
       "gzip": true
     },
     {
@@ -144,6 +144,13 @@
       "path": "dist/adapters.js",
       "import": "{ maskTarget }",
       "limit": "0.8 KB",
+      "gzip": true
+    },
+    {
+      "name": "adapters › canvasTarget (per-export shakeability gate)",
+      "path": "dist/adapters.js",
+      "import": "{ canvasTarget }",
+      "limit": "0.55 KB",
       "gzip": true
     },
     {

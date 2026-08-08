@@ -27,11 +27,15 @@
       },
       "peerDependencies": {
         "react": ">=18",
+        "react-native": ">=0.71",
+        "react-native-svg": ">=14",
         "svelte": ">=5",
         "vue": ">=3.3",
       },
       "optionalPeers": [
         "react",
+        "react-native",
+        "react-native-svg",
         "svelte",
         "vue",
       ],

@@ -6,3 +6,6 @@ dist/
 .codex-testbench-staging
 .vercel
 .env*
+
+# npm pack artifacts (local dev tarballs, e.g. the website's temporary file: pin)
+*.tgz

@@ -12,6 +12,12 @@
    trips the gate, not a reviewer's eye. */
 
 export {
+  type Canvas2DContext,
+  type CanvasSurface,
+  type CanvasTargetOptions,
+  canvasTarget,
+} from "./canvas";
+export {
   type MaskEl,
   type MaskPathEl,
   type MaskStyle,
