@@ -14,13 +14,25 @@ const ROUTES: MetadataRoute.Sitemap = [
   },
   {
     url: `${SITE_URL}/showcase`,
-    lastModified: "2026-08-04",
+    lastModified: "2026-08-08",
     changeFrequency: "monthly",
     priority: 0.8,
   },
   {
+    url: `${SITE_URL}/showcase/mask`,
+    lastModified: "2026-08-08",
+    changeFrequency: "monthly",
+    priority: 0.7,
+  },
+  {
+    url: `${SITE_URL}/showcase/canvas`,
+    lastModified: "2026-08-08",
+    changeFrequency: "monthly",
+    priority: 0.7,
+  },
+  {
     url: `${SITE_URL}/roadmap`,
-    lastModified: "2026-08-04",
+    lastModified: "2026-08-08",
     changeFrequency: "monthly",
     priority: 0.6,
   },

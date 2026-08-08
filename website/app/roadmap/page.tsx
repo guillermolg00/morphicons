@@ -5,7 +5,7 @@ import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 export const metadata: Metadata = {
 	title: "Roadmap",
 	description:
-		"Where morphicons is heading: hardened public boundaries, a component showcase, SVG Doctor, a shareable Studio and a custom animation editor.",
+		"Where morphicons is heading: format adapters for CSS masks and canvas, hardened public boundaries, SVG Doctor, a shareable Studio and a custom animation editor.",
 	alternates: { canonical: "/roadmap" },
 };
 
@@ -66,12 +66,58 @@ const GROUPS: Group[] = [
 				title: "Component showcase",
 				note: "The icon swaps that show up most in real shadcn/ui apps, as copy-paste components: pick the library, framework, spring and stroke.",
 			},
+			{
+				title: "Reduced motion, as an explicit policy",
+				note: (
+					<>
+						<Code>{'reducedMotion: "never" | "user" | "always"'}</Code> on the driver
+						and all four bindings, live at runtime. Motion becomes a product
+						decision instead of a silent global override.
+					</>
+				),
+			},
+			{
+				title: "Format adapters: markup in, CSS masks out",
+				note: (
+					<>
+						<Code>morphicons/adapters</Code>: <Code>svgToIcon</Code> parses the SVG an
+						Iconify-style pipeline ships, <Code>maskTarget</Code> morphs mask-styled
+						elements in place (double-buffered so Safari repaints). One opt-in entry,
+						each adapter tree-shakes alone, pinned by per-export size gates.
+					</>
+				),
+			},
+			{
+				title: "Canvas adapter",
+				note: (
+					<>
+						<Code>canvasTarget</Code>: any canvas or 2D context as a morph target via
+						Path2D. The icon becomes pixels you own: GPU textures, chart sprites,
+						favicons, OffscreenCanvas. 0.5 KB gzip on top of the driver.
+					</>
+				),
+			},
+			{
+				title: "Adapter showcase",
+				note: "The showcase grew tabs: core, mask and canvas. The canvas tab runs a Mapbox map whose pins morph through interaction states, and a streaming chart whose trend icon rides the data.",
+			},
 		],
 	},
 	{
 		label: "Up next",
 		dot: "border border-ink bg-canvas",
 		items: [
+			{
+				title: "Adapter ergonomics",
+				note: (
+					<>
+						<Code>useTarget</Code> so React lifecycles stop hand-rolling
+						destroy/dispose, <Code>elementToIcon</Code> to read the icon an element
+						already renders, and a viewBox parameter across the pipeline for
+						off-grid packs.
+					</>
+				),
+			},
 			{
 				title: "Bulletproof inputs",
 				note: "Clear errors at every public boundary, malformed paths, invalid springs, mismatched sample sizes.",

@@ -10,9 +10,13 @@
     "extract-icons": "bun scripts/extract-vendor-icons.mjs"
   },
   "dependencies": {
+    "@tanstack/charts": "^0.7.2",
     "@vercel/analytics": "^2.0.1",
+    "d3-scale": "^4.0.2",
+    "d3-shape": "^3.2.0",
     "lucide": "^1.28.0",
-    "morphicons": "1.4.2",
+    "mapbox-gl": "^3.28.1",
+    "morphicons": "1.6.0",
     "next": "16.2.12",
     "react": "19.2.8",
     "react-dom": "19.2.8"
@@ -20,6 +24,9 @@
   "devDependencies": {
     "@tabler/icons": "^3.46.0",
     "@tailwindcss/postcss": "^4",
+    "@types/d3-scale": "^4.0.9",
+    "@types/d3-shape": "^3.1.8",
+    "@types/geojson": "^7946.0.16",
     "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",

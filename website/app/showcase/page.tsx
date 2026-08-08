@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { Showcase } from "@/components/showcase";
+import { ShowcaseShell } from "@/components/showcase-shell";
+import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 
 export const metadata: Metadata = {
   title: "Showcase",
   description:
-    "shadcn/ui-style components with morphing icons: copy button, password toggle, theme switch, player controls, inline validation and file tree. Pick your icon library, tune the spring, copy the code for React, Vue or Svelte.",
+    "shadcn/ui-style components with morphing icons, built on the core library alone: copy button, password toggle, theme switch, player controls, inline validation and file tree. Pick your icon library, tune the spring, copy the code for React, Vue or Svelte.",
   alternates: { canonical: "/showcase" },
 };
 
@@ -14,20 +15,33 @@ export default function ShowcasePage() {
     <div className="flex flex-1 flex-col">
       <SiteHeader />
 
-      <main className="flex flex-1 flex-col pb-24">
-        <section className="mx-auto w-full max-w-[1200px] px-6 pb-10 pt-16">
-          <h1 className="text-balance text-4xl font-semibold leading-[1.05] tracking-[-0.045em] text-ink">
-            Showcase
-          </h1>
-          <p className="mt-4 max-w-[560px] text-pretty text-lg leading-7 text-body">
+      <ShowcaseShell
+        active="core"
+        lede={
+          <>
             The icon swaps that show up most in real shadcn/ui apps, rebuilt as
-            morphs. Pick a library, tune the physics, copy the component in
-            your framework.
-          </p>
-        </section>
-
+            morphs with the core library alone: one MorphIcon component
+            rendering inline SVG. Pick a library, tune the physics, copy the
+            component in your framework.
+          </>
+        }
+        traits={[
+          {
+            label: "Why this path",
+            body: "Inline SVG straight from icon data, with an SSR-exact first paint and accessibility built in. This is the default way to ship a morph, and the lightest.",
+          },
+          {
+            label: "What it weighs",
+            body: "6.6 KB gzip for the core, about 8 KB with a framework binding. Zero runtime dependencies, and subpath exports so you only pay for what you import.",
+          },
+          {
+            label: "The tradeoff",
+            body: "Icons must be stroke-centerline data: Lucide, Tabler, Heroicons outline, Iconoir. Fill-drawn glyphs have no centerline to morph, so they are rejected up front.",
+          },
+        ]}
+      >
         <Showcase />
-      </main>
+      </ShowcaseShell>
 
       <SiteFooter />
     </div>
