@@ -17,7 +17,7 @@
     "lucide": "^1.28.0",
     "mapbox-gl": "^3.28.1",
     "morphicons": "1.6.0",
-    "next": "16.2.12",
+    "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -31,7 +31,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.12",
+    "eslint-config-next": "16.3.0",
     "heroicons": "^2.2.0",
     "tailwindcss": "^4",
     "typescript": "^6"
