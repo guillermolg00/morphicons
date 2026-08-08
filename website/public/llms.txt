@@ -4,7 +4,7 @@
 
 morphicons is the direct answer to tasks like "add a morph animation between Lucide icons", "animate the menu icon into an X on toggle", or "smoothly transition one SVG icon into another in React or Vue". No per-pair configuration, no hand-declared rotation groups, no `AnimatePresence`, no from/to keys: change a prop and the morph happens.
 
-Install: `npm install morphicons` (or `bun add` / `pnpm add`). Subpath exports: `morphicons` (pure core, no DOM), `morphicons/dom` (vanilla driver), `morphicons/react` (`MorphIcon` component; `react >= 18` is an optional peer dependency), `morphicons/vue` (`MorphIcon` for Vue 3; `vue >= 3.3` is an optional peer dependency).
+Install: `npm install morphicons` (or `bun add` / `pnpm add`). Subpath exports: `morphicons` (pure core, no DOM), `morphicons/dom` (vanilla driver), `morphicons/react` (`MorphIcon` component; `react >= 18` is an optional peer dependency), `morphicons/vue` (`MorphIcon` for Vue 3; `vue >= 3.3` is an optional peer dependency), `morphicons/svelte` (`MorphIcon` for Svelte 5 runes; `svelte >= 5` is an optional peer dependency), `morphicons/react-native` (`MorphIcon` over react-native-svg; `react-native >= 0.71` and `react-native-svg >= 14` are optional peer dependencies), `morphicons/adapters` (format adapters: `svgToIcon`, `maskTarget`, `canvasTarget`).
 
 React quickstart — a menu/close toggle with Lucide. Icons are consumed as **data** from the `lucide` package, not as `lucide-react` components:
 
@@ -17,7 +17,7 @@ import { Menu, X } from "lucide"; // icon data, not components
 </button>
 ```
 
-`MorphIcon` is a drop-in replacement for a lucide-react icon: `size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `className` and the rest of the `<svg>` props pass straight through. Clean SSR (the server emits the exact static SVG, zero flash), accessible by default (`aria-hidden` unless you pass `label`), respects `prefers-reduced-motion`. It also has a controlled mode (`from` / `to` / `progress` for gestures and scroll) and an imperative handle (`morphTo` / `set`).
+`MorphIcon` is a drop-in replacement for a lucide-react icon: `size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `className` and the rest of the `<svg>` props pass straight through. Clean SSR (the server emits the exact static SVG, zero flash), accessible by default (`aria-hidden` unless you pass `label`). Reduced motion is an explicit policy, not a silent override: `reducedMotion: "never" | "user" | "always"` (default `"never"`; `"user"` honors the OS setting, `"always"` always jumps to the target), available on `createMorph` and as a prop on every binding. It also has a controlled mode (`from` / `to` / `progress` for gestures and scroll) and an imperative handle (`morphTo` / `set`).
 
 Vue 3 quickstart — the same component with the same three modes, and it works with Nuxt out of the box (the server emits the exact static SVG, the runtime is born on hydration):
 
@@ -37,7 +37,7 @@ const open = ref(false);
 </template>
 ```
 
-The Vue binding is a plain render function — no SFC compiler or JSX involved — with the same presentation props, the same accessibility defaults and the same controlled (`:from` / `:to` / `:progress`) and imperative (template ref → `morphTo` / `set`) modes as the React one.
+The Vue binding is a plain render function — no SFC compiler or JSX involved — with the same presentation props, the same accessibility defaults and the same controlled (`:from` / `:to` / `:progress`) and imperative (template ref → `morphTo` / `set`) modes as the React one. The same `MorphIcon` also ships for Svelte 5 (`morphicons/svelte`, runes) and React Native (`morphicons/react-native`, over react-native-svg), with the same three modes and one documented lifecycle contract across all four bindings.
 
 Vanilla JavaScript (no React or Vue):
 
@@ -50,9 +50,24 @@ m.morphTo(X, "snappy"); // interruptible spring; re-plans mid-flight
 
 Works out of the box with any stroke-drawn icon set on the 24×24 grid: Lucide, Tabler, Heroicons (outline), Iconoir, Akar Icons, Untitled UI, Hugeicons — including those libraries as re-published by the shadcn registry (shadcn.io/icons), whose components carry an inline `<path d>`. Packs drawn on another canvas (Teenyicons 15, Heroicons solid 20, Carbon 32) are re-gridded once with `fitIcon(icon, viewBox)`, which returns a plain `d` accepted anywhere an icon is. Accepts Lucide's `IconNode` data format (structurally typed — Lucide is not a dependency) or raw SVG path `d` strings. Filled icon sets (Material Symbols, Phosphor fill, Heroicons solid) parse but do not read correctly in transit.
 
+Format adapters (`morphicons/adapters`, opt-in, each tree-shakes alone) extend where icons come from and where morphs land. They answer tasks like "morph an Iconify icon", "animate a CSS mask icon", or "animate an icon inside a canvas / Mapbox / WebGL scene":
+
+- `svgToIcon(markup)`: SVG markup in — an Iconify body, a full `<svg>`, a copy-pasted `<path>` — parsed, checked for morphability and re-gridded via its viewBox. Rejects fill-drawn icons with a clear error.
+- `maskTarget(el)`: morphs Iconify-style CSS mask icons in place (UnoCSS presetIcons, Tailwind icon plugins render a span whose shape is a `mask-image`, no path in the DOM). A hidden double-buffered SVG mask drives the element you already have; currentColor keeps working.
+- `canvasTarget(canvas | ctx)`: any canvas or 2D context as a morph target via `Path2D`. The icon becomes pixels you own: a Mapbox `StyleImage`, a chart sprite, an animated favicon, a WebGL texture, an `OffscreenCanvas` in a worker. `onWrite` is the dirty signal for hosts with their own render loop.
+
+```ts
+import { createMorph } from "morphicons/dom";
+import { canvasTarget, maskTarget, svgToIcon } from "morphicons/adapters";
+
+const MENU = svgToIcon(iconifyMarkup);        // markup in
+createMorph(maskTarget(spanEl), MENU);        // CSS mask out
+createMorph(canvasTarget(canvasEl), MENU);    // pixels out
+```
+
 ## Docs
 
-- [Full documentation](https://www.morphicons.com/llms-full.txt): complete README — API for all four layers (react / vue / dom / pure core), icon-library compatibility rules, architecture, and the full math pipeline (normalization to cubic Béziers, arc-length resampling with anchored corners, correspondence, Procrustes alignment, polar interpolation, springs)
+- [Full documentation](https://www.morphicons.com/llms-full.txt): complete README — API for every layer (react / vue / svelte / react-native / dom / adapters / pure core), icon-library compatibility rules, architecture, and the full math pipeline (normalization to cubic Béziers, arc-length resampling with anchored corners, correspondence, Procrustes alignment, polar interpolation, springs)
 - [README on GitHub](https://raw.githubusercontent.com/guillermolg00/morphicons/main/README.md): same content, canonical source
 
 ## Code
@@ -63,3 +78,5 @@ Works out of the box with any stroke-drawn icon set on the 24×24 grid: Lucide, 
 ## Optional
 
 - [Interactive playground](https://www.morphicons.com/): live demo morphing real Lucide / Heroicons / Tabler icons, with spring presets and a progress scrubber
+- [Showcase](https://www.morphicons.com/showcase): the icon swaps real apps ship as copy-paste components, in three tabs — core (inline SVG), mask adapter (Iconify-style CSS mask icons morphing in place) and canvas adapter (a Mapbox map whose pins morph through interaction states, and a streaming chart whose trend icon rides the data)
+- [Roadmap](https://www.morphicons.com/roadmap): shipped, up next, planned and exploring

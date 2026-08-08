@@ -145,7 +145,19 @@ const GROUPS: Group[] = [
 			{
 				title: "Custom Animation Studio",
 				note: "A timeline editor for choreographies beyond the automatic morph, shipped as a separate package.",
-			}
+			},
+			{
+				title: "Type that morphs",
+				note: (
+					<>
+						Regular fonts are filled outlines, off limits by design. But monoline
+						fonts (Hershey, single-stroke plotter faces) are pure centerlines:
+						exactly the core&apos;s contract. Digits first, a counter whose 3
+						bends into 8; then a <Code>textToIcon</Code> adapter for single-line
+						fonts.
+					</>
+				),
+			},
 		],
 	},
 ];
