@@ -43,7 +43,7 @@ The usual icon morphs either interpolate raw coordinates (shapes shrink and shea
 bun add morphicons        # or npm install / pnpm add
 ```
 
-ESM only. `react` (>= 18), `vue` (>= 3.3), `svelte` (>= 5) and `react-native` (>= 0.71) + `react-native-svg` (>= 14) are optional peers — only needed for `morphicons/react`, `morphicons/vue`, `morphicons/svelte` and `morphicons/react-native`.
+ESM only. `react` (>= 18), `vue` (>= 3.3), `svelte` (>= 5) and `react-native` (>= 0.71) + `react-native-svg` (>= 14) are optional peers — only needed for `morphicons/react`, `morphicons/vue`, `morphicons/svelte` and `morphicons/react-native`. `morphicons/element` (the `<morph-icon>` custom element) and `morphicons/astro` (its SSR shell) need no peer at all — Astro compiles the shell itself, like every `.astro` component shipped as source.
 
 **Icons come from a data package, not a component package.** morphicons consumes icon *data* (an `IconNode` or a raw `d` string). For Lucide that means the vanilla `lucide` package: `import { Menu, X } from "lucide"` gives you `IconNode`s, which is why every snippet below says "data, not components". The framework packages (`lucide-react`, `lucide-vue-next`, `@lucide/svelte`, `lucide-react-native`) export components, and `MorphIcon` can't consume those. If your app already renders static icons with one of them, keep it: the data and component packages coexist by design and both tree-shake cleanly, so you only pay for the icons you import. Just keep their versions aligned, so the icons you morph match the ones you render statically.
 
@@ -67,7 +67,7 @@ ref.current?.morphTo(Check); // animates
 ref.current?.set(X);         // jumps without animating
 ```
 
-Drop-in replacement for lucide-react (the props surface: the `icon` prop takes Lucide *data*, not lucide-react components, see [Install](#install)): `size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `className` and the rest of the `<svg>` props pass straight through. Correct accessibility by default: `aria-hidden` unless you pass `label` (→ `role="img"` + `<title>`). Clean SSR: the server emits the exact static SVG (zero flash, zero layout shift); the runtime is born on hydration. Morphs play regardless of the OS reduce-motion setting by default; opt into honoring it with `reducedMotion="user"` (see [Reduced motion](#reduced-motion-all-four-bindings)).
+Drop-in replacement for lucide-react (the props surface: the `icon` prop takes Lucide *data*, not lucide-react components, see [Install](#install)): `size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `className` and the rest of the `<svg>` props pass straight through. Correct accessibility by default: `aria-hidden` unless you pass `label` (→ `role="img"` + `<title>`). Clean SSR: the server emits the exact static SVG (zero flash, zero layout shift); the runtime is born on hydration. Morphs play regardless of the OS reduce-motion setting by default; opt into honoring it with `reducedMotion="user"` (see [Reduced motion](#reduced-motion-all-five-bindings)).
 
 ### Vue — same three modes
 
@@ -143,15 +143,54 @@ ref.current?.set(X);         // jumps without animating
 
 The DOM-free core beyond the browser: the dom driver is reused verbatim as the engine (React Native has a global `requestAnimationFrame`, and `PathEl` is structural), so the whole platform difference is a shim that forwards the per-frame `d` write to `Path.setNativeProps` of react-native-svg — outside the React render, exactly like the web mutation. Same surface as the React binding (`size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, plus the native `Svg` props: `testID`, touch handlers…), same accessibility defaults (`aria-hidden` unless you pass `label` → `role="img"` + `aria-label`). With `reducedMotion="user"`, the OS setting comes from `AccessibilityInfo` (best-effort: the query is async; a `reduceMotionChanged` subscription keeps it exact from then on). Requires Metro with package `exports` resolution — default since React Native 0.79; on older versions enable `unstable_enablePackageExports`.
 
-### Lifecycle contract (all four bindings)
+### Astro — same three modes, zero framework runtime
 
-The four components share one contract, pinned by mirrored client-mount tests:
+```astro
+---
+import MorphIcon from "morphicons/astro";
+import { Menu } from "lucide"; // data, not components
+---
+
+<MorphIcon icon={Menu} label="Menu" id="menu-icon" />
+
+<script>
+  import { X } from "lucide";
+  import type { MorphIconElement } from "morphicons/element";
+  // Post-load control happens ON the element (it upgrades to <morph-icon>):
+  const el = document.querySelector<MorphIconElement>("#menu-icon")!;
+  el.morphTo(X);             // 3. imperative: morphTo / set, like a ref
+  // el.icon = X;            // 1. uncontrolled: assigning the property animates
+  // el.from = Menu; el.to = X; el.progress = 0.5;  // 2. controlled: frozen seek
+</script>
+```
+
+The server emits the exact static SVG with the pure core (zero flash, zero layout shift, works with static output and any SSR adapter) and hydration is just custom-element upgrade: the shell defines `<morph-icon>` once per page and the element adopts the server markup verbatim — zero `d` writes during upgrade, pinned by instrumented tests. No framework runtime ships — the only client bytes are `morphicons/element`. A controlled pair of `d` strings survives upgrade as attributes, so assigning `progress` from a script scrubs the server-frozen pair; `IconNode` pairs are server-only (attributes can't carry them) — control those by assigning the element's properties. Same presentation props as every binding (`size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `label`); rest attrs (`id`, `class`, `data-*`…) land on the `<morph-icon>` element, because grabbing it from a client script is the interaction model here. React/Vue/Svelte islands keep working for icons that live inside one — this entry is for the pages that don't need an island at all.
+
+### Web component — `<morph-icon>` anywhere HTML reaches
+
+The Astro shell is a thin SSR layer over `morphicons/element`, which stands on its own in plain HTML, HTMX, Rails, or any server-rendered stack:
+
+```html
+<script type="module">
+  import { defineMorphIcon } from "morphicons/element";
+  defineMorphIcon(); // idempotent; custom tag: defineMorphIcon("my-icon")
+</script>
+
+<!-- attributes take d strings; properties take the full IconInput -->
+<morph-icon icon="M4 6h16M4 12h16M4 18h16" label="Menu"></morph-icon>
+```
+
+The element is the fifth binding, not a second implementation: it wires attributes and properties to the same shared controller, passes the same mirrored mount suite, and exposes the same three modes — `icon` (uncontrolled), `from`/`to`/`progress` (controlled), `morphTo`/`set` methods (imperative, the element IS the handle). Attributes carry strings (`d` paths, preset names); properties accept everything (`IconNode`s, custom springs). If the element already contains a server-rendered `<svg><path>`, it adopts it verbatim and treats its `d` as the at-rest icon — SSR bytes are never rewritten at rest.
+
+### Lifecycle contract (all five bindings)
+
+The five components share one contract, pinned by mirrored client-mount tests:
 
 - **Lazy driver.** Mounting without any icon is fine — SSR emits `<path d="">` and the driver is born with the FIRST icon that shows up, whether a late `icon` prop (data that loads async), a late `from`/`to` pair, or an imperative `set`/`morphTo`. The first icon paints without animating; `morphTo` before the driver exists behaves as `set` (there is nothing to fly from).
 - **Controlled wins.** While `from` AND `to` are both present, the pair owns the path: `icon` changes are ignored, no spring fires. Drop the pair and the current `icon` takes over (animated). Mixing the modes is not an error — the precedence is just explicit.
 - **Clean re-entry.** Any exit from controlled mode (an imperative call or an icon takeover) invalidates the frozen pair, so returning to the same `from`/`to` re-bases on `from` and renders exactly like a clean mount at that `progress`.
 
-### Reduced motion (all four bindings)
+### Reduced motion (all five bindings)
 
 Icon morphs are small, short, communicative micro-transitions: the kind of motion the reduce-motion guidance considers generally acceptable, unlike parallax or full-screen movement. Auto-degrading them made the library look broken to every user with the OS setting on, so since 1.4.2 they play by default and the policy is an explicit prop (the same default Motion, formerly Framer Motion, ships):
 
@@ -295,6 +334,7 @@ This also covers the [shadcn registry](https://www.shadcn.io/icons), which re-pu
 ```
 ┌─────────────────────────────────────────────┐
 │  bindings   react · vue · svelte · rn      │  thin: ref + createMorph
+│             · element (+ astro SSR shell)   │
 ├─────────────────────────────────────────────┤
 │  drivers    dom (setAttribute + rAF)        │  singleton scheduler
 ├─────────────────────────────────────────────┤
@@ -305,7 +345,7 @@ This also covers the [shadcn registry](https://www.shadcn.io/icons), which re-pu
 └─────────────────────────────────────────────┘
 ```
 
-The hard rule: **the core never touches the DOM**. Pure functions consume icon data and produce `d` strings. Direct consequence: the React Native binding over `react-native-svg` is just another adapter, not a rewrite — it reuses the dom driver verbatim through a `setNativeProps` shim. One package with subpath exports (`.` core, `./dom`, `./react`, `./react-native`, `./vue`, `./svelte`), ESM only, `sideEffects: false`.
+The hard rule: **the core never touches the DOM**. Pure functions consume icon data and produce `d` strings. Direct consequence: the React Native binding over `react-native-svg` is just another adapter, not a rewrite — it reuses the dom driver verbatim through a `setNativeProps` shim. One package with subpath exports (`.` core, `./dom`, `./react`, `./react-native`, `./vue`, `./svelte`, `./element`, `./astro`), ESM only, `sideEffects: false`.
 
 The plan is the central artifact:
 
@@ -454,6 +494,8 @@ CI budget (size-limit, gzip) as an anti-regression tripwire — gates carry ~10%
 | `morphicons/vue` (all, vue external) | 8.04 KB | 8.5 KB |
 | `morphicons/svelte` TS half (all, svelte external) | 7.66 KB | 8 KB |
 | `MorphIcon.svelte` (ships as source, consumer-compiled) | 1.26 KB | 1.4 KB |
+| `morphicons/element` (all, `<morph-icon>`) | 8.86 KB | 9.5 KB |
+| `MorphIcon.astro` (ships as source, consumer-compiled) | 1.58 KB | 1.75 KB |
 
 The adapters entry carries **two kinds of gate**: the aggregate (allowed to grow as adapters are added) and one per named export, which pins each adapter as independently tree-shakeable — if two adapters ever couple, the per-export gate trips in CI. Standalone, `{ svgToIcon }` measures 3.34 KB because auto-fit drags the core's lowering machinery; an app that already imports the core shares that chunk and pays ~0.4 KB incremental.
 

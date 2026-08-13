@@ -1,0 +1,109 @@
+---
+/* Astro binding: SSR shell over the <morph-icon> custom element. The server
+   emits the exact static SVG with the pure core (zero flash, zero layout
+   shift, no framework runtime) and the element adopts it verbatim on
+   upgrade; the processed <script> below defines the element once per page,
+   so hydration IS custom-element upgrade. Post-load control (icon swaps,
+   controlled scrubbing, imperative calls) happens on the element itself:
+   grab it from any client script and assign properties or call morphTo/set.
+   Thin shell on purpose, like MorphIcon.svelte: all logic lives in
+   typechecked modules; this file only wires props to markup. */
+import type {
+  IconInput,
+  MorphOptions,
+  ReducedMotionMode,
+  SpringPreset,
+} from "../element/index";
+import { computeInitialD } from "../element/index";
+
+interface Props {
+  /** Uncontrolled mode: the icon at rest (IconNode or `d` string). */
+  icon?: IconInput;
+  /** Controlled mode: source endpoint of the pair (server-side freeze). */
+  from?: IconInput;
+  /** Controlled mode: target endpoint of the pair (server-side freeze). */
+  to?: IconInput;
+  /** Controlled mode: 0..1 progress of the frozen morph. */
+  progress?: number;
+  /** Physics for client-side morphs: preset name or custom spring (presets
+   *  ride the attribute; custom springs need a client script). */
+  spring?: SpringPreset | MorphOptions;
+  reducedMotion?: ReducedMotionMode;
+  size?: number | string;
+  color?: string;
+  strokeWidth?: number | string;
+  /** Like lucide: stroke width does not scale with `size`. */
+  absoluteStrokeWidth?: boolean;
+  /** Accessibility: with label → role="img" + <title>; without → aria-hidden. */
+  label?: string;
+}
+
+const {
+  icon,
+  from,
+  to,
+  progress,
+  spring,
+  reducedMotion,
+  size = 24,
+  color = "currentColor",
+  strokeWidth = 2,
+  absoluteStrokeWidth = false,
+  label,
+  ...rest
+} = Astro.props;
+
+const initialD = computeInitialD({ icon, from, to, progress });
+const sw = absoluteStrokeWidth ? (Number(strokeWidth) * 24) / Number(size) : strokeWidth;
+
+/* String pairs ride attributes so `progress` keeps scrubbing the frozen
+   pair after upgrade. BOTH or none — half a mixed pair would mount from the
+   lone endpoint (docs/adr/0003). IconNode pairs stay server-only. */
+const stringPair = typeof from === "string" && typeof to === "string";
+---
+
+{/* Rest props land on <morph-icon>, not the svg: grabbing the element by
+    id/class/data-* from a client script IS the interaction model here. */}
+<morph-icon
+  icon={typeof icon === "string" ? icon : undefined}
+  from={stringPair ? from : undefined}
+  to={stringPair ? to : undefined}
+  progress={progress}
+  spring={typeof spring === "string" ? spring : undefined}
+  reduced-motion={reducedMotion}
+  size={String(size)}
+  color={color}
+  stroke-width={String(strokeWidth)}
+  absolute-stroke-width={absoluteStrokeWidth ? "" : undefined}
+  label={label}
+  {...rest}
+>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    stroke-width={sw}
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    role={label ? "img" : undefined}
+    aria-hidden={label ? undefined : "true"}
+  >
+    {label && <title>{label}</title>}
+    <path d={initialD}></path>
+  </svg>
+</morph-icon>
+
+<style>
+  /* Layout-neutral wrapper from the first paint, before any JS runs. */
+  morph-icon {
+    display: contents;
+  }
+</style>
+
+<script>
+  import { defineMorphIcon } from "../element/index";
+  defineMorphIcon();
+</script>

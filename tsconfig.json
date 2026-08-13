@@ -23,6 +23,8 @@
     "src/vue",
     "test/vue",
     "src/svelte",
-    "test/svelte"
+    "test/svelte",
+    "src/element",
+    "test/element"
   ]
 }

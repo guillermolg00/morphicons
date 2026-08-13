@@ -1,6 +1,6 @@
 {
   "name": "morphicons",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Universal morphing for stroke-based icons with spring physics — zero runtime dependencies",
   "license": "MIT",
   "author": "Guillermo (https://guillermolg.com)",
@@ -35,6 +35,10 @@
     "lucide-vue-next",
     "svelte",
     "lucide-svelte",
+    "astro",
+    "astro-component",
+    "web-component",
+    "custom-element",
     "icon-animation"
   ],
   "type": "module",
@@ -71,6 +75,14 @@
       "types": "./dist/svelte.d.ts",
       "svelte": "./dist/svelte.js",
       "default": "./dist/svelte.js"
+    },
+    "./element": {
+      "types": "./dist/element.d.ts",
+      "default": "./dist/element.js"
+    },
+    "./astro": {
+      "types": "./dist/astro.d.ts",
+      "default": "./dist/MorphIcon.astro"
     }
   },
   "peerDependencies": {
@@ -102,11 +114,11 @@
   ],
   "scripts": {
     "test": "bun test",
-    "typecheck": "tsc --noEmit && tsc -p playground --noEmit && tsc -p tsconfig.react.json --noEmit && tsc -p tsconfig.react-native.json --noEmit && tsc -p tsconfig.vue.json --noEmit && tsc -p tsconfig.svelte.json --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p playground --noEmit && tsc -p tsconfig.react.json --noEmit && tsc -p tsconfig.react-native.json --noEmit && tsc -p tsconfig.vue.json --noEmit && tsc -p tsconfig.svelte.json --noEmit && tsc -p tsconfig.element.json --noEmit",
     "play": "bun ./playground/index.html",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "build": "tsdown && bun scripts/build-svelte.ts",
+    "build": "tsdown && bun scripts/build-svelte.ts && bun scripts/build-astro.ts",
     "size": "size-limit",
     "prepublishOnly": "bun run build"
   },
@@ -202,6 +214,22 @@
         "@size-limit/esbuild"
       ],
       "limit": "1.4 KB",
+      "gzip": true
+    },
+    {
+      "name": "core + dom + element (<morph-icon> custom element)",
+      "path": "dist/element.js",
+      "import": "*",
+      "limit": "9.5 KB",
+      "gzip": true
+    },
+    {
+      "name": "astro shell (ships as source, consumer-compiled)",
+      "path": "dist/MorphIcon.astro",
+      "disablePlugins": [
+        "@size-limit/esbuild"
+      ],
+      "limit": "1.75 KB",
       "gzip": true
     }
   ],

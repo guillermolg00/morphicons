@@ -27,3 +27,11 @@ _Avoid_: runtime opt-in
 **Gate**:
 A gzip size tripwire in CI with ~10% headroom: one per entry, plus one per named export inside the adapters entry. Renegotiated consciously, never grown silently.
 _Avoid_: size budget, limit
+
+**Binding controller**:
+The lifecycle contract as framework-neutral code (`src/dom/controller.ts`): mount, prop watch, controlled seek with re-basing and the imperative surface, all over `PathEl`. Svelte and the custom element consume it directly; React and Vue keep hook/watch ports of the same logic, pinned by mirrored suites.
+_Avoid_: state machine, manager, shared hooks
+
+**Shell**:
+A logic-free component file shipped as source and compiled by the consumer's toolchain (`MorphIcon.svelte`, `MorphIcon.astro`): it only wires a reactive surface to typechecked logic, so it contains nothing that can be wrong on its own — which is what makes never typechecking it acceptable.
+_Avoid_: wrapper, thin component (as a name; as a description it's fine)
