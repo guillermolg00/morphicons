@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { highlight } from "@/lib/highlight";
-import { REACT_LOGO, SVELTE_LOGO, VUE_LOGO } from "@/lib/logos";
+import { ASTRO_LOGO, REACT_LOGO, SVELTE_LOGO, VUE_LOGO } from "@/lib/logos";
 
 /* The whole API, verbatim from the README, once per binding: state lives
    outside and MorphIcon animates when the prop changes. Fixed on purpose —
@@ -52,6 +52,28 @@ import { Menu, X } from "lucide"; // data, not components
 </Pressable>
 `;
 
+const ASTRO_SNIPPET = `---
+import MorphIcon from "morphicons/astro";
+import { Menu } from "lucide"; // data, not components
+---
+
+<button id="menu" type="button" aria-label="Toggle menu" aria-expanded="false">
+  <MorphIcon icon={Menu} />
+</button>
+
+<script>
+  import { Menu, X } from "lucide";
+  import type { MorphIconElement } from "morphicons/element";
+  const btn = document.querySelector<HTMLButtonElement>("#menu")!;
+  const icon = btn.querySelector<MorphIconElement>("morph-icon")!;
+  btn.addEventListener("click", () => {
+    const open = btn.getAttribute("aria-expanded") !== "true";
+    btn.setAttribute("aria-expanded", String(open));
+    icon.icon = open ? X : Menu; // assigning the property animates
+  });
+</script>
+`;
+
 type Framework = {
   id: string;
   label: string;
@@ -78,6 +100,7 @@ const FRAMEWORKS: Framework[] = [
     logo: REACT_LOGO,
     code: REACT_NATIVE_SNIPPET,
   },
+  { id: "astro", label: "Astro", lang: "astro", logo: ASTRO_LOGO, code: ASTRO_SNIPPET },
 ].map((f) => ({ ...f, tokens: highlight(f.code) }));
 
 export function CodePanel() {
@@ -97,7 +120,7 @@ export function CodePanel() {
     <div>
       <div className="overflow-hidden rounded-xl border border-hairline bg-code-bg shadow-card-lg">
         <div className="flex h-12 items-center justify-between gap-3 border-b border-white/10 px-2 sm:px-3">
-          {/* biome note: intentionally a manual tabs pattern — 4 static tabs */}
+          {/* biome note: intentionally a manual tabs pattern — 5 static tabs */}
           <div
             role="tablist"
             aria-label="Framework"
@@ -153,9 +176,9 @@ export function CodePanel() {
         </pre>
       </div>
       <p className="mt-3 text-sm text-body">
-        That is the whole thing — in React, Vue, Svelte or React Native. No wrappers,
-        no keys, no from/to pairs, no configuration. Swap the pair for any two icons
-        above.
+        That is the whole thing — in React, Vue, Svelte, React Native or Astro (no
+        island needed: the icon upgrades to a web component). No wrappers, no keys,
+        no from/to pairs, no configuration. Swap the pair for any two icons above.
       </p>
     </div>
   );

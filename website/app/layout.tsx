@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 const SITE_URL = "https://www.morphicons.com";
 const TITLE = "morphicons — SVG icon morphing library for React, Vue & Svelte";
 const DESCRIPTION =
-  "Morph any SVG icon into any other with spring physics. Animate Lucide, Tabler and Heroicons in React, Vue, Svelte, React Native or vanilla JS. Zero dependencies, ~6 KB gzip.";
+  "Morph any SVG icon into any other with spring physics. Animate Lucide, Tabler and Heroicons in React, Vue, Svelte, React Native, Astro or vanilla JS. Zero dependencies, ~6 KB gzip.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
