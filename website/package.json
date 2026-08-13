@@ -10,14 +10,14 @@
     "extract-icons": "bun scripts/extract-vendor-icons.mjs"
   },
   "dependencies": {
-    "@tanstack/charts": "^0.7.2",
+    "@tanstack/charts": "^0.9.0",
     "@vercel/analytics": "^2.0.1",
     "d3-scale": "^4.0.2",
     "d3-shape": "^3.2.0",
-    "lucide": "^1.28.0",
+    "lucide": "^1.31.0",
     "mapbox-gl": "^3.28.1",
     "morphicons": "1.7.0",
-    "next": "16.2.12",
+    "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -31,7 +31,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.12",
+    "eslint-config-next": "16.3.0",
     "heroicons": "^2.2.0",
     "tailwindcss": "^4",
     "typescript": "^6"
