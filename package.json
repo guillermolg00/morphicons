@@ -246,7 +246,7 @@
     "lucide": "^1.28.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-native": "^0.86.2",
+    "react-native": "^0.87.0",
     "react-native-svg": "^15.15.5",
     "size-limit": "^13.0.3",
     "svelte": "^5.56.8",
