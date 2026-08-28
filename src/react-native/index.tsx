@@ -7,19 +7,25 @@
    requestAnimationFrame, PathEl is structural, and createMorph only ever
    writes the `d` attribute — so the whole platform difference is a shim
    that forwards that write to Path.setNativeProps({ d }), outside the vdom
-   exactly like the web mutation. The initial `d` is computed ONCE with the
-   pure core and React never rewrites it. No matchMedia in RN: with
-   reducedMotion="user" the OS setting comes from AccessibilityInfo, cached
-   best-effort (the query is async) and kept fresh via the
-   reduceMotionChanged event; the default "never" policy never touches the
-   accessibility bridge. */
+   exactly like the web mutation. Unlike the web one, though, that mutation
+   is not the last word: on Fabric every commit rebuilds the native path
+   from the props on the fiber, so a declarative `d` frozen at mount would
+   overwrite the driver's work on the next unrelated render (issue #25).
+   The `d` React declares is therefore the driver's live one — computed with
+   the pure core for the first render (SSR-exact) and re-published on every
+   later render, with a layout effect repairing the window between a render
+   and its commit.
+
+   No matchMedia in RN: with reducedMotion="user" the OS setting comes from
+   AccessibilityInfo, cached best-effort (the query is async) and kept fresh
+   via the reduceMotionChanged event; the default "never" policy never
+   touches the accessibility bridge. */
 
 import {
   forwardRef,
   useCallback,
   useEffect,
   useImperativeHandle,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -38,6 +44,7 @@ import {
   type MorphOptions,
   type ReducedMotionMode,
 } from "../dom/index";
+import { useIsoLayoutEffect } from "./iso-layout-effect";
 
 /** Imperative surface exposed via ref. */
 export interface MorphHandle {
@@ -69,10 +76,6 @@ export interface MorphIconProps extends Omit<SvgProps, "from" | "to"> {
   /** Accessibility: with label → role="img" + aria-label; without → aria-hidden. */
   label?: string;
 }
-
-// react-native-web SSR runs no effects; on the client we want layout (sync
-// before first paint). The shim avoids the useLayoutEffect warning there.
-const useIsoLayoutEffect = typeof document === "undefined" ? useEffect : useLayoutEffect;
 
 // Reduced motion, module-level: ONE AccessibilityInfo query + subscription
 // for all instances, armed lazily by the FIRST instance that opts into the
@@ -135,12 +138,18 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
     const controlled = from !== undefined && to !== undefined;
     const initialIcon = icon ?? from ?? to;
 
-    // Constant for React: computed once and from then on only the driver
-    // mutates the native prop outside the vdom (setNativeProps).
+    // First render's `d`, computed once with the pure core (SSR-exact) and
+    // from then on the seed of the live value the driver writes through.
     const [initialD] = useState(() => {
       if (controlled) return frozenD(from, to, progress ?? 0);
       return initialIcon !== undefined ? canonicalD(initialIcon) : "";
     });
+
+    // The shape currently on screen. Read during render on purpose: Fabric
+    // reconciles the native path from what React declares, so every commit
+    // must carry the driver's latest `d` instead of a mount-time snapshot.
+    const liveD = useRef(initialD);
+    const declaredD = liveD.current;
 
     const pathRef = useRef<Path>(null);
     const morphRef = useRef<Morph | null>(null);
@@ -161,7 +170,9 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
      *  it to the native view without re-rendering. Stable identity. */
     const el = useRef<{ setAttribute(name: string, value: string): void }>({
       setAttribute: (name, value) => {
-        if (name === "d") pathRef.current?.setNativeProps({ d: value });
+        if (name !== "d") return;
+        liveD.current = value;
+        pathRef.current?.setNativeProps({ d: value });
       },
     });
 
@@ -212,6 +223,17 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
       };
       // Mount only: later changes are handled by the per-mode effects.
     }, []);
+
+    // Fabric repair, after EVERY commit (no deps, cheap: one comparison).
+    // React just reconciled the path with the `d` this render published; if
+    // the driver has moved on since — a frame landed, a seek ran, an
+    // imperative call arrived — that value is already stale, so re-apply the
+    // live one before paint. At rest the two always match and nothing runs,
+    // which is why no state update is ever scheduled per frame.
+    useIsoLayoutEffect(() => {
+      if (liveD.current !== declaredD)
+        pathRef.current?.setNativeProps({ d: liveD.current });
+    });
 
     // "user" arms the OS listener the moment it is requested (mount included):
     // the query is async, so arming early keeps the best-effort window small.
@@ -306,7 +328,7 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
         aria-hidden={label ? undefined : true}
         {...rest}
       >
-        <Path ref={pathRef} d={initialD} />
+        <Path ref={pathRef} d={declaredD} />
       </Svg>
     );
   },

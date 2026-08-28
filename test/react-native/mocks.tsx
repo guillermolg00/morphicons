@@ -34,6 +34,15 @@ class MockPath extends Component<{ d?: string }> {
     for (const key of Object.keys(props)) this.el?.setAttribute(key, String(props[key]));
   }
 
+  /* Fabric fidelity (issue #25): on the New Architecture every commit rebuilds
+     the native path from React's props, so whatever setNativeProps wrote is
+     dropped unless the declarative value matches. react-dom instead diffs the
+     prop and skips an unchanged `d`, which is why the reset never shows up on
+     the web — the reconciliation is replayed here on every update. */
+  override componentDidUpdate(): void {
+    this.el?.setAttribute("d", String(this.props.d ?? ""));
+  }
+
   override render(): ReactNode {
     return createElement("path", {
       d: this.props.d,
