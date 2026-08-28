@@ -1,6 +1,6 @@
 {
   "name": "morphicons",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Universal morphing for stroke-based icons with spring physics — zero runtime dependencies",
   "license": "MIT",
   "author": "Guillermo (https://guillermolg.com)",
