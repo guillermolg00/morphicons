@@ -26,7 +26,6 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -45,6 +44,7 @@ import {
   type MorphOptions,
   type ReducedMotionMode,
 } from "../dom/index";
+import { useIsoLayoutEffect } from "./iso-layout-effect";
 
 /** Imperative surface exposed via ref. */
 export interface MorphHandle {
@@ -76,10 +76,6 @@ export interface MorphIconProps extends Omit<SvgProps, "from" | "to"> {
   /** Accessibility: with label → role="img" + aria-label; without → aria-hidden. */
   label?: string;
 }
-
-// react-native-web SSR runs no effects; on the client we want layout (sync
-// before first paint). The shim avoids the useLayoutEffect warning there.
-const useIsoLayoutEffect = typeof document === "undefined" ? useEffect : useLayoutEffect;
 
 // Reduced motion, module-level: ONE AccessibilityInfo query + subscription
 // for all instances, armed lazily by the FIRST instance that opts into the
