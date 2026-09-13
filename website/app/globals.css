@@ -63,6 +63,10 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+button:not(:disabled) {
+  cursor: pointer;
+}
+
 ::selection {
   background: var(--ink);
   color: var(--canvas-soft);
