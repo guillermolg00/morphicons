@@ -39,8 +39,8 @@ export default function Home() {
             Morph any SVG icon into any other.
           </h1>
           <p className="mx-auto mt-5 max-w-[560px] text-pretty text-lg leading-7 text-body">
-            Animate Lucide, Tabler, Heroicons or any stroke icon set. Optimal rotation
-            solved in closed form, spring physics, zero dependencies.
+            Animate Lucide, Tabler, Heroicons or any stroke icon set. Optimal
+            rotation solved in closed form, spring physics, zero dependencies.
           </p>
           <div className="mt-8">
             <InstallCommand />
@@ -55,7 +55,10 @@ export default function Home() {
         </section>
 
         {/* How it works: one paragraph of honest docs plus the numbers. */}
-        <section id="how" className="mt-24 border-t border-hairline bg-canvas-soft">
+        <section
+          id="how"
+          className="mt-24 border-t border-hairline bg-canvas-soft"
+        >
           <div className="mx-auto w-full max-w-[1200px] px-6 py-20 sm:py-24">
             <div className="grid gap-14 lg:grid-cols-2 lg:gap-20">
               <div>
@@ -63,12 +66,13 @@ export default function Home() {
                   Six kilobytes of math.
                 </h2>
                 <p className="mt-5 max-w-[60ch] leading-relaxed text-body">
-                  morphicons solves the optimal similarity between two shapes in closed form
-                  (2D Procrustes): if a pair is congruent under rotation, it rotates; if not,
-                  it morphs in the aligned frame. Nobody declares rotation groups by hand.
-                  Springs are interruptible, corners stay sharp at rest, and the core never
-                  touches the DOM, so React, Vue, Svelte, React Native, Astro, Next.js
-                  and plain JavaScript are all first-class drivers.
+                  morphicons solves the optimal similarity between two shapes in
+                  closed form (2D Procrustes): if a pair is congruent under
+                  rotation, it rotates; if not, it morphs in the aligned frame.
+                  Nobody declares rotation groups by hand. Springs are
+                  interruptible, corners stay sharp at rest, and the core never
+                  touches the DOM, so React, Vue, Svelte, React Native, Astro,
+                  Next.js and plain JavaScript are all first-class drivers.
                 </p>
                 <p className="mt-4 max-w-[60ch] leading-relaxed text-body">
                   Icons are consumed as data, not components: a{" "}
@@ -86,11 +90,10 @@ export default function Home() {
               <dl className="grid grid-cols-2 content-center gap-x-8 gap-y-10">
                 {STATS.map((s) => (
                   <div key={s.caption}>
-                    <dt className="sr-only">{s.caption}</dt>
                     <dd className="text-3xl font-semibold tracking-[-0.03em] text-ink">
                       {s.value}
                     </dd>
-                    <p className="mt-1 text-sm text-body">{s.caption}</p>
+                    <dt className="mt-1 text-sm text-body">{s.caption}</dt>
                   </div>
                 ))}
               </dl>
