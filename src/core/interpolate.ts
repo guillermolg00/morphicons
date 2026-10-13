@@ -36,9 +36,11 @@ export function interpPolar(plan: MorphPlan, t: number, out: Float64Array[]): vo
       cx = it.ca[0] + (it.cb[0] - it.ca[0]) * t;
       cy = it.ca[1] + (it.cb[1] - it.ca[1]) * t;
     }
+    // the residual blend; a vanishing hole runs it on one half (plan.ts)
+    const m = it.half === undefined ? t : Math.min(1, Math.max(0, 2 * t - it.half));
     for (let i = 0; i < n; i++) {
-      const px = it.aC[2 * i] + (it.bT[2 * i] - it.aC[2 * i]) * t;
-      const py = it.aC[2 * i + 1] + (it.bT[2 * i + 1] - it.aC[2 * i + 1]) * t;
+      const px = it.aC[2 * i] + (it.bT[2 * i] - it.aC[2 * i]) * m;
+      const py = it.aC[2 * i + 1] + (it.bT[2 * i + 1] - it.aC[2 * i + 1]) * m;
       o[2 * i] = cx + px * cos - py * sin;
       o[2 * i + 1] = cy + px * sin + py * cos;
     }

@@ -63,6 +63,56 @@ const frameAt = (plan: MorphPlan, t: number) => {
   return out;
 };
 
+// Nonzero winding of a frame at (x, y) — what the renderer paints.
+const windingAt = (contours: readonly Float64Array[], x: number, y: number): number => {
+  let w = 0;
+  for (const p of contours) {
+    const n = p.length / 2;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const yi = p[2 * i + 1];
+      const yj = p[2 * j + 1];
+      if (yj <= y !== yi <= y) {
+        const xc = p[2 * j] + ((y - yj) * (p[2 * i] - p[2 * j])) / (yi - yj);
+        if (xc > x) w += yi > yj ? 1 : -1; // outers (signedArea > 0) wind +1
+      }
+    }
+  }
+  return w;
+};
+
+// Off-lattice probe grid over the 24 box.
+const GRID: Array<[number, number]> = [];
+for (let y = 0.37; y < 24; y += 0.5)
+  for (let x = 0.61; x < 24; x += 0.5) GRID.push([x, y]);
+
+// No probe winds negative at any t: a hole never paints outside its surface.
+const neverNegative = (plan: MorphPlan) => {
+  for (let t = 0; t <= 1; t += 0.125) {
+    const f = frameAt(plan, t);
+    for (const [x, y] of GRID) expect(windingAt(f, x, y)).toBeGreaterThanOrEqual(0);
+  }
+};
+
+// The plan's t = 1 paints exactly the target region (probe by probe).
+const endsAs = (plan: MorphPlan, b: IconNode) => {
+  const f = frameAt(plan, 1);
+  const target = resampleRegion(toRegion(b)).map((s) => s.pts);
+  for (const [x, y] of GRID)
+    expect(windingAt(f, x, y) !== 0).toBe(windingAt(target, x, y) !== 0);
+};
+
+const circle = (cx: number, cy: number, r: number, cw = false) =>
+  `M${cx} ${cy - r}a${r} ${r} 0 1 ${cw ? 1 : 0} 0 ${2 * r}a${r} ${r} 0 1 ${cw ? 1 : 0} 0 ${-2 * r}z`;
+const starPath = (R: number, r: number, turn: number) =>
+  `${Array.from({ length: 10 }, (_, i) => {
+    const a = turn + (i * Math.PI) / 5 - Math.PI / 2;
+    const d = i % 2 ? r : R;
+    return `${i ? "L" : "M"}${(12 + d * Math.cos(a)).toFixed(4)} ${(12 + d * Math.sin(a)).toFixed(4)}`;
+  }).join("")}Z`;
+const evenodd = (d: string): IconNode => [
+  ["path", { d, "fill-rule": "evenodd", fill: "currentColor" }],
+];
+
 const inside = (x: number, y: number, p: Float64Array): boolean => {
   let c = false;
   const n = p.length / 2;
@@ -160,11 +210,13 @@ describe("region plans", () => {
     const holes = plan.items.map((it, k) => [it, k] as const).filter(([it]) => it.hole);
     expect(holes.length).toBe(1);
     const k = holes[0][1];
-    const areas = [0, 0.5, 1].map((t) => Math.abs(signedArea(frameAt(plan, t)[k])));
+    // it closes on the first half of the flight (gone by t = ½)
+    const areas = [0, 0.25, 0.5, 1].map((t) => Math.abs(signedArea(frameAt(plan, t)[k])));
     expect(areas[0]).toBeGreaterThan(100);
     expect(areas[1]).toBeLessThan(areas[0]);
     expect(areas[1]).toBeGreaterThan(0);
     expect(areas[2]).toBeLessThan(1e-9);
+    expect(areas[3]).toBeLessThan(1e-9);
     // at every t the hole's points stay inside the outer
     const outer = plan.items.findIndex((it) => !it.hole);
     for (const t of [0.1, 0.3, 0.5, 0.7, 0.9]) {
@@ -179,6 +231,93 @@ describe("region plans", () => {
     expect(plan.items.filter((it) => it.hole).length).toBe(1);
     const k = plan.items.findIndex((it) => it.hole);
     expect(Math.abs(signedArea(frameAt(plan, 0)[k]))).toBeLessThan(1e-9);
+  });
+
+  test("two pieces → a ring: the ring is never duplicated, its hole never paints", () => {
+    // a solid bell (body + clapper) → an outline bell: duplicating the ring
+    // onto both pieces would wind +2 under its −1 hole and paint it
+    const BELL: IconNode = [
+      ["circle", { cx: 12, cy: 11, r: 8, fill: "currentColor" }],
+      ["circle", { cx: 12, cy: 21.5, r: 1.5, fill: "currentColor" }],
+    ];
+    for (const [a, b] of [
+      [BELL, RING],
+      [RING, BELL],
+    ] as const) {
+      const plan = regionPlan(a, b);
+      endsAs(plan, b);
+      neverNegative(plan);
+    }
+    expect(windingAt(frameAt(regionPlan(BELL, RING), 1), 12, 12)).toBe(0);
+  });
+
+  test("a piece that vanishes takes its holes along, nested at every t", () => {
+    const TWO_RINGS = evenodd(
+      `${circle(6, 12, 5)}${circle(6, 12, 2.5)}${circle(18, 12, 5)}${circle(18, 12, 2.5)}`,
+    );
+    const ONE_RING = evenodd(`${circle(6, 12, 5)}${circle(6, 12, 2.5)}`);
+    for (const [a, b] of [
+      [TWO_RINGS, ONE_RING],
+      [ONE_RING, TWO_RINGS],
+    ] as const) {
+      const plan = regionPlan(a, b);
+      endsAs(plan, b);
+      neverNegative(plan);
+    }
+  });
+
+  test("a hole belongs to the outer its contour lies in, not the one under its centroid", () => {
+    // camera: the body's window is centered on the lens; the window's
+    // centroid sits inside the lens, its contour inside the body
+    const camera = (w: number, lens: number): IconNode => [
+      [
+        "path",
+        {
+          d: `M2 5h20v15H2z${circle(12, 12.5, w)}`,
+          "fill-rule": "evenodd",
+          fill: "currentColor",
+        },
+      ],
+      ["circle", { cx: 12, cy: 12.5, r: lens, fill: "currentColor" }],
+    ];
+    const plan = regionPlan(camera(6, 3.5), camera(5, 2.5));
+    const hole = plan.items.find((it) => it.hole);
+    const outers = plan.items.filter((it) => !it.hole);
+    const body = outers.reduce((x, y) =>
+      Math.abs(signedArea(x.a)) > Math.abs(signedArea(y.a)) ? x : y,
+    );
+    expect(hole?.ca).toEqual(body.ca); // flies in the body's frame
+    endsAs(plan, camera(5, 2.5));
+    neverNegative(plan);
+  });
+
+  test("a matched hole flies in its outer's frame: a turned star ring never leaks", () => {
+    const ring = (turn: number) =>
+      evenodd(`${starPath(11, 5, turn)}${starPath(8, 3.4, turn)}`);
+    for (const turn of [Math.PI / 5, 0.3]) {
+      const plan = regionPlan(ring(0), ring(turn));
+      const [outer, hole] = plan.items;
+      expect(hole.hole).toBe(true);
+      expect(hole.theta).toBe(outer.theta);
+      expect(hole.lnSigma).toBe(outer.lnSigma);
+      endsAs(plan, ring(turn));
+      neverNegative(plan);
+    }
+  });
+
+  test("holes that don't overlap don't pair: one closes, then the other opens", () => {
+    const slot = (d: string) => evenodd(`M3 3h18v18H3z${d}`);
+    const TOP = slot("M5 5h14v2H5z");
+    const SIDE = slot("M5 10h2v9H5z");
+    const plan = regionPlan(TOP, SIDE);
+    const holes = plan.items.filter((it) => it.hole);
+    expect(holes.map((h) => h.half).sort()).toEqual([0, 1]);
+    const mid = frameAt(plan, 0.5);
+    plan.items.forEach((it, k) => {
+      if (it.hole) expect(Math.abs(signedArea(mid[k]))).toBeLessThan(1e-9);
+    });
+    endsAs(plan, SIDE);
+    neverNegative(plan);
   });
 
   test("play → pause: one piece divides into two", () => {

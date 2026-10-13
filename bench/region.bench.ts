@@ -181,11 +181,13 @@ const timeit = (fn: () => void, reps = 3): number => {
 
 // ---------------------------------------------------------------------------
 // 3. Accuracy: scanline raster of nonzero contours on [-1, 25]². Samples
-// sit OFF the 0.05 lattice (phase 0.3711, not 0.5): icon vertices live on
-// that lattice, and a 45° edge through it would cross pixel centers
-// exactly, so a 1e-10 difference would flip a whole column of pixels.
+// sit OFF the 0.05 lattice, with a different phase per axis: icon vertices
+// live on that lattice, and with one shared phase a 45° edge through a
+// vertex still crosses pixel centers exactly, so a 1e-15 difference flips a
+// whole diagonal of pixels.
 
-const PHASE = 0.3711;
+const PX = 0.618;
+const PY = 0.3711;
 const R = 520;
 const LO = -1;
 const SPAN = 26;
@@ -194,7 +196,7 @@ function raster(contours: Float64Array[]): Uint8Array {
   const xs: number[] = [];
   const ds: number[] = [];
   for (let row = 0; row < R; row++) {
-    const y = LO + ((row + PHASE) * SPAN) / R;
+    const y = LO + ((row + PY) * SPAN) / R;
     xs.length = 0;
     ds.length = 0;
     for (const p of contours) {
@@ -213,8 +215,8 @@ function raster(contours: Float64Array[]): Uint8Array {
     for (let k = 0; k < order.length - 1; k++) {
       w += ds[order[k]];
       if (w === 0) continue;
-      const c0 = Math.max(0, Math.ceil(((xs[order[k]] - LO) * R) / SPAN - PHASE));
-      const c1 = Math.min(R, Math.ceil(((xs[order[k + 1]] - LO) * R) / SPAN - PHASE));
+      const c0 = Math.max(0, Math.ceil(((xs[order[k]] - LO) * R) / SPAN - PX));
+      const c1 = Math.min(R, Math.ceil(((xs[order[k + 1]] - LO) * R) / SPAN - PX));
       bmp.fill(1, row * R + c0, row * R + c1);
     }
   }

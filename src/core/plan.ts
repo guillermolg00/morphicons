@@ -60,6 +60,10 @@ export interface PlanItem {
   /** Region plans only: the item is a hole (negative winding). Collapsing
    *  and growing holes are items too — their far endpoint is one point. */
   hole?: boolean;
+  /** Region plans only: a hole that vanishes or appears blends its shape on
+   *  one half of the flight (0 = collapses on [0, ½], 1 = grows on [½, 1])
+   *  while it keeps riding its outer the whole way. */
+  half?: 0 | 1;
   /** Block transport (set by the global hybrid, else null): mid-flight the
    *  centroid rides the shared similarity around the global centroid instead
    *  of lerping — off = c_A − g_A; drift closes c(1) = c_B exactly. */
@@ -164,6 +168,7 @@ export function alignPair(
   aClosed = false,
   bClosed = false,
   allowReverse = true,
+  lambda = LAMBDA,
 ): Alignment {
   const ca = centroid(aPts);
   const cb = centroid(bPts);
@@ -180,7 +185,7 @@ export function alignPair(
     for (let off = 0; off < offs; off++) {
       const cand = off ? rotatePts(walk, off) : walk;
       const s = varyA ? procrustes(cand, bPts, ca, cb) : procrustes(aPts, cand, ca, cb);
-      const score = s.res + (LAMBDA * Math.abs(s.theta)) / Math.PI;
+      const score = s.res + (lambda * Math.abs(s.theta)) / Math.PI;
       if (score < bestScore) {
         bestScore = score;
         best = cand;
@@ -385,9 +390,10 @@ export function makeItem(
   aClosed: boolean,
   bClosed: boolean,
   allowReverse: boolean,
+  lambda?: number,
 ): PlanItem {
   const n = aPts.length / 2;
-  const al = alignPair(aPts, bPts, aClosed, bClosed, allowReverse);
+  const al = alignPair(aPts, bPts, aClosed, bClosed, allowReverse, lambda);
   const a = al.a;
   const aC = new Float64Array(2 * n);
   const bT = new Float64Array(2 * n);
