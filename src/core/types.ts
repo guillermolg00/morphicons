@@ -26,6 +26,10 @@ export interface CubicPath {
 export interface Sampled {
   pts: Float64Array;
   closed: boolean;
+  /** Region contours only: true for a hole (negative winding). Carried
+   *  explicitly because a hole collapsing mid-flight has ~zero area and
+   *  could not be re-classified from its points. */
+  hole?: boolean;
 }
 
 /** Number of cubic segments in a CubicPath. */

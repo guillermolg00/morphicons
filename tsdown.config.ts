@@ -5,6 +5,9 @@ export default defineConfig({
     index: "src/index.ts",
     dom: "src/dom/index.ts",
     adapters: "src/adapters/index.ts",
+    // Region normalizer: its own entry AND the lazy chunk the dom driver
+    // imports on first fill morph (stroke-only apps never download it).
+    region: "src/region/index.ts",
     react: "src/react/index.tsx",
     "react-native": "src/react-native/index.tsx",
     vue: "src/vue/index.ts",

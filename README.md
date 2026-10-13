@@ -483,21 +483,24 @@ CI budget (size-limit, gzip) as an anti-regression tripwire — gates carry ~10%
 
 | entry | measured | gate |
 |---|---|---|
-| `morphicons` (core) | 6.60 KB | 7 KB |
-| `morphicons/dom` (core + driver) | 7.12 KB | 7.5 KB |
-| `morphicons/adapters` (aggregate — grows by design) | 4.32 KB | 4.8 KB |
-| `adapters` › `{ svgToIcon }` alone | 3.34 KB | 3.7 KB |
+| `morphicons` (core) | 6.63 KB | 7 KB |
+| `morphicons/region` (normalizer standalone — the lazy chunk, ~4.1 KB incremental) | 9.31 KB | 10 KB |
+| `morphicons/dom` (core + driver) | 8.31 KB | 9 KB |
+| `morphicons/adapters` (aggregate — grows by design) | 5.18 KB | 5.7 KB |
+| `adapters` › `{ svgToIcon }` alone | 4.23 KB | 4.7 KB |
 | `adapters` › `{ maskTarget }` alone | 0.70 KB | 0.8 KB |
 | `adapters` › `{ canvasTarget }` alone | 0.48 KB | 0.55 KB |
-| `morphicons/react` (all, react external) | 8.01 KB | 8.5 KB |
-| `morphicons/react-native` (all, react/rn/rnsvg external) | 8.37 KB | 9 KB |
-| `morphicons/vue` (all, vue external) | 8.04 KB | 8.5 KB |
-| `morphicons/svelte` TS half (all, svelte external) | 7.66 KB | 8 KB |
+| `morphicons/react` (all, react external) | 9.18 KB | 10 KB |
+| `morphicons/react-native` (all, react/rn/rnsvg external; Metro inlines the region chunk) | 13.0 KB | 14.3 KB |
+| `morphicons/vue` (all, vue external) | 9.20 KB | 10 KB |
+| `morphicons/svelte` TS half (all, svelte external) | 8.81 KB | 9.7 KB |
 | `MorphIcon.svelte` (ships as source, consumer-compiled) | 1.26 KB | 1.4 KB |
-| `morphicons/element` (all, `<morph-icon>`) | 8.86 KB | 9.5 KB |
+| `morphicons/element` (all, `<morph-icon>`) | 10.0 KB | 11 KB |
 | `MorphIcon.astro` (ships as source, consumer-compiled) | 1.58 KB | 1.75 KB |
 
 The adapters entry carries **two kinds of gate**: the aggregate (allowed to grow as adapters are added) and one per named export, which pins each adapter as independently tree-shakeable — if two adapters ever couple, the per-export gate trips in CI. Standalone, `{ svgToIcon }` measures 3.34 KB because auto-fit drags the core's lowering machinery; an app that already imports the core shares that chunk and pays ~0.4 KB incremental.
+
+The dom and binding numbers are **static** bytes. The region normalizer (stroke ↔ fill, fill ↔ fill) is a separate chunk loaded with `import()` the first time a morph involves a fill icon — stroke-only apps never download it; its incremental cost over an app that already has the driver is ~4.1 KB gzip. Bundlers that don't split (IIFE/UMD, Metro) inline it. See [ADR 0004](docs/adr/0004-regions-are-canon-normalizer-is-lazy.md).
 
 ## Playground
 

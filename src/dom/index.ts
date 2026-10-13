@@ -7,6 +7,7 @@
 import { allocOutputs, interpPolar } from "../core/interpolate";
 import { iconToCubics } from "../core/normalize";
 import { buildPlan, type MorphPlan } from "../core/plan";
+import { isRegion, type Paint, paintOf } from "../core/region";
 import { resampleIcon } from "../core/resample";
 import { cubicsToPathD, serialize } from "../core/serialize";
 import { SPRING_PRESETS, Spring, type SpringPreset } from "../core/spring";
@@ -14,6 +15,8 @@ import type { IconInput, IconNode, Sampled } from "../core/types";
 
 declare function requestAnimationFrame(cb: (ts: number) => void): number;
 declare function cancelAnimationFrame(id: number): void;
+declare function setTimeout(cb: () => void, ms: number): unknown;
+declare function clearTimeout(id: unknown): void;
 declare const matchMedia: ((query: string) => { matches: boolean }) | undefined;
 
 /** Target element, structurally typed: any object with setAttribute works
@@ -37,6 +40,11 @@ export type ReducedMotionMode = "never" | "user" | "always";
 export interface CreateMorphOptions {
   /** Reduced-motion policy; also live via the `reducedMotion` property. */
   reducedMotion?: ReducedMotionMode;
+  /** Stroke width the element draws with (24-unit grid). Only used to
+   *  outline stroke icons when they morph with a fill icon, so the region
+   *  in flight matches the stroke at rest. Default 2; live via the
+   *  `strokeWidth` property. */
+  strokeWidth?: number;
 }
 
 export interface Morph {
@@ -54,6 +62,8 @@ export interface Morph {
   progress: number;
   /** Reduced-motion policy, live: assigning it applies to the next morphTo. */
   reducedMotion: ReducedMotionMode;
+  /** Stroke width used to outline stroke icons in stroke↔fill morphs. */
+  strokeWidth: number;
   /** Unregisters the instance; later calls are no-ops. */
   destroy(): void;
 }
@@ -148,6 +158,130 @@ function planBetween(src: IconInput, dst: IconInput): MorphPlan {
   return p;
 }
 
+// ---------------------------------------------------------------------------
+// Regions (any pair with a fill icon). The normalizer is a separate chunk,
+// loaded on first need: stroke-only apps never download it. Loads are
+// shared, failures are not cached (the next need retries), and an app can
+// swap the loader (static import, CDN, no code splitting) once at startup.
+
+type RegionModule = typeof import("../region/index");
+let regionMod: RegionModule | null = null;
+let regionLoading: Promise<RegionModule> | null = null;
+let regionFailed = false; // last attempt failed: prefetches wait for a need
+let regionLoader: () => Promise<RegionModule> = () => import("../region/index");
+
+/** Replaces how the region normalizer is loaded (default: dynamic import of
+ *  the bundled chunk). E.g. `setRegionLoader(async () => region)` after a
+ *  static `import * as region from "morphicons/region"` to never touch the
+ *  network mid-interaction. The next need loads through the new loader. */
+export function setRegionLoader(loader: () => Promise<RegionModule>): void {
+  regionLoader = loader;
+  regionLoading = null;
+  regionMod = null;
+  regionFailed = false;
+}
+
+/** Starts (or joins) loading the region normalizer. Call it early — on
+ *  idle, on hover — to keep the first stroke↔fill morph off the network. */
+export function preloadRegion(): Promise<RegionModule> {
+  if (regionMod) return Promise.resolve(regionMod);
+  regionLoading ??= regionLoader().then(
+    (m) => {
+      regionMod = m;
+      return m;
+    },
+    (e: unknown) => {
+      regionLoading = null; // not cached: a later need retries
+      regionFailed = true;
+      throw e;
+    },
+  );
+  return regionLoading;
+}
+
+// Prefetch (mount, rest upgrades). After a failure it waits for the next
+// morph that NEEDS the chunk: a jump caused by the failure must not fire a
+// second request in the same instant.
+const quietPreload = (): void => {
+  if (!regionFailed) preloadRegion().catch(() => {});
+};
+
+/** How long a morph waits for the region chunk before giving up on the
+ *  flight and jumping (RAIL's 100 ms response budget). A slow, failed or
+ *  hanging load never leaves the icon stuck on the old shape; the load goes
+ *  on in the background and the next morph flies. */
+const REGION_WAIT_MS = 100;
+
+// Region forms by stroke width (a stroke icon outlines differently per
+// width; a fill icon ignores it). Strings get a small bounded cache.
+const regionForms = new WeakMap<IconNode, Map<number, IconNode>>();
+const regionStrings = new Map<string, IconNode>();
+const regionSamples = new WeakMap<IconNode, Sampled[]>();
+const regionPlans = new WeakMap<IconNode, WeakMap<IconNode, MorphPlan>>();
+
+function regionOf(icon: IconInput, sw: number): IconNode {
+  if (isRegion(icon)) return icon as IconNode;
+  const mod = regionMod as RegionModule;
+  const width = paintOf(icon) === "fill" ? 0 : sw;
+  if (typeof icon === "string") {
+    const key = `${width}|${icon}`;
+    let r = regionStrings.get(key);
+    if (!r) {
+      r = mod.toRegion(icon, { strokeWidth: sw });
+      if (regionStrings.size >= 64)
+        regionStrings.delete(regionStrings.keys().next().value as string);
+      regionStrings.set(key, r);
+    }
+    return r;
+  }
+  let byWidth = regionForms.get(icon);
+  if (!byWidth) {
+    byWidth = new Map();
+    regionForms.set(icon, byWidth);
+  }
+  let r = byWidth.get(width);
+  if (!r) {
+    r = mod.toRegion(icon, { strokeWidth: sw });
+    byWidth.set(width, r);
+  }
+  return r;
+}
+
+function regionSampledOf(region: IconNode): Sampled[] {
+  let s = regionSamples.get(region);
+  if (!s) {
+    s = (regionMod as RegionModule).resampleRegion(region);
+    regionSamples.set(region, s);
+  }
+  return s;
+}
+
+function regionPlanBetween(src: IconNode, dst: IconNode): MorphPlan {
+  let inner = regionPlans.get(src);
+  if (!inner) {
+    inner = new WeakMap();
+    regionPlans.set(src, inner);
+  }
+  let p = inner.get(dst);
+  if (!p) {
+    p = (regionMod as RegionModule).buildRegionPlan(
+      regionSampledOf(src),
+      regionSampledOf(dst),
+    );
+    inner.set(dst, p);
+  }
+  return p;
+}
+
+// Fill rule an unnormalized fill icon renders with at rest: evenodd only if
+// every element asks for it (Heroicons solid), else nonzero (Material).
+function restRule(icon: IconInput): string {
+  if (typeof icon === "string") return "nonzero";
+  return icon.every(([, a]) => String(a["fill-rule"] ?? "").trim() === "evenodd")
+    ? "evenodd"
+    : "nonzero";
+}
+
 function resolveSpring(s?: SpringPreset | MorphOptions): { k: number; c: number } {
   if (typeof s === "string") return SPRING_PRESETS[s];
   const d = SPRING_PRESETS.snappy;
@@ -164,6 +298,7 @@ export function createMorph(
 ): Morph {
   const spring = new Spring();
   let reducedMotion: ReducedMotionMode = options?.reducedMotion ?? "never";
+  let strokeWidth = options?.strokeWidth ?? 2;
   let target = icon;
   let rest = true; // the element's d is target's canonical one
   let plan: MorphPlan | null = null;
@@ -172,8 +307,48 @@ export function createMorph(
   let t = 1;
   let flying = false; // ticker registered (spring running)
   let dead = false;
+  let regionFlight = false; // the active plan is a region plan
+  let pending: object | null = null; // latest request waiting for the chunk
+  let paint: Paint = "stroke"; // what the element paints (markup default)
+  let rule = "";
+
+  // Paint attributes are written only on change, and never for stroke-only
+  // use: the element keeps inheriting the <svg>'s stroke as it always did.
+  const paintAs = (p: Paint, r = "nonzero"): void => {
+    if (p === paint && (p === "stroke" || r === rule)) return;
+    if (p === "fill") {
+      el.setAttribute("fill", "currentColor");
+      el.setAttribute("stroke", "none");
+      el.setAttribute("fill-rule", r);
+    } else {
+      el.setAttribute("fill", "none");
+      el.setAttribute("stroke", "inherit");
+    }
+    paint = p;
+    rule = r;
+  };
+
+  // The at-rest `d` + paint of an icon. A fill icon rests on its region
+  // once the normalizer is around (exact union of its elements), else on
+  // its own canonical d with the rule its elements declare.
+  const paintRest = (ic: IconInput): void => {
+    if (paintOf(ic) === "stroke") {
+      el.setAttribute("d", canonicalD(ic));
+      paintAs("stroke");
+    } else if (regionMod || isRegion(ic)) {
+      el.setAttribute("d", canonicalD(regionMod ? regionOf(ic, strokeWidth) : ic));
+      paintAs("fill");
+    } else {
+      el.setAttribute("d", canonicalD(ic));
+      paintAs("fill", restRule(ic));
+    }
+  };
 
   el.setAttribute("d", canonicalD(icon));
+  if (paintOf(icon) === "fill") {
+    paintAs("fill", isRegion(icon) ? "nonzero" : restRule(icon));
+    quietPreload();
+  }
 
   const render = (tt: number): void => {
     const p = plan;
@@ -208,7 +383,8 @@ export function createMorph(
     t = 1;
     spring.x = 1;
     spring.v = 0;
-    el.setAttribute("d", canonicalD(target));
+    regionFlight = false;
+    paintRest(target);
   };
 
   /** The current shape as plan source: the at-rest icon, or the rendered
@@ -220,21 +396,89 @@ export function createMorph(
     return o.map((buf, k) => ({
       pts: Float64Array.from(buf),
       closed: p.items[k].closed,
+      hole: p.items[k].hole,
     }));
   };
 
+  // The current shape as a REGION plan source. Mid-flight centerlines (a
+  // stroke morph interrupted toward a fill icon) are outlined as they are.
+  const regionSnapshot = (): Sampled[] => {
+    if (rest || !plan || !out) return regionSampledOf(regionOf(target, strokeWidth));
+    if (regionFlight) return snapshot();
+    const mod = regionMod as RegionModule;
+    return mod.resampleRegion(regionOf(serialize(out, closed ?? undefined), strokeWidth));
+  };
+
+  /** A morph from the current shape to `icon` needs regions when either
+   *  side is filled, or when the shape in flight already is a region. */
+  const needsRegion = (icon: IconInput): boolean =>
+    (!rest && regionFlight) || paintOf(icon) === "fill" || paintOf(target) === "fill";
+
   const retarget = (icon: IconInput): void => {
-    plan = rest ? planBetween(target, icon) : buildPlan(snapshot(), sampledOf(icon));
+    if (needsRegion(icon)) {
+      const dst = regionOf(icon, strokeWidth);
+      plan = rest
+        ? regionPlanBetween(regionOf(target, strokeWidth), dst)
+        : (regionMod as RegionModule).buildRegionPlan(
+            regionSnapshot(),
+            regionSampledOf(dst),
+          );
+      regionFlight = true;
+      paintAs("fill");
+    } else {
+      plan = rest ? planBetween(target, icon) : buildPlan(snapshot(), sampledOf(icon));
+      regionFlight = false;
+    }
     out = allocOutputs(plan);
     closed = plan.items.map((it) => it.closed);
     target = icon;
     rest = false;
   };
 
+  // Region chunk not loaded yet: remember the LATEST request and replay it
+  // when the chunk arrives — if it arrives within REGION_WAIT_MS. Past that
+  // budget, or on a failed load, `jump` runs instead (never a stuck icon,
+  // never a throw). Superseded requests are dropped.
+  const whenRegion = (icon: IconInput, run: () => void, jump: () => void): boolean => {
+    if (regionMod || !needsRegion(icon)) return false;
+    const req = {};
+    pending = req;
+    const give = (): void => {
+      if (dead || pending !== req) return;
+      pending = null;
+      jump();
+    };
+    const timer = setTimeout(give, REGION_WAIT_MS);
+    preloadRegion().then(
+      () => {
+        clearTimeout(timer);
+        if (dead || pending !== req) return;
+        pending = null;
+        run();
+      },
+      () => {
+        clearTimeout(timer);
+        give();
+      },
+    );
+    return true;
+  };
+
   const setNow = (icon: IconInput): void => {
     stop();
+    pending = null;
     target = icon;
     settle();
+    // Upgrade the rest shape to the exact region once the chunk is around
+    // (joins a load in flight; starts one unless the last attempt failed).
+    if (paintOf(icon) === "fill" && !regionMod && (regionLoading || !regionFailed)) {
+      preloadRegion().then(
+        () => {
+          if (!dead && rest && target === icon && pending === null) paintRest(icon);
+        },
+        () => {},
+      );
+    }
   };
 
   /** True when the policy says this morphTo must jump instead of flying. */
@@ -248,6 +492,18 @@ export function createMorph(
 
   const seek = (icon: IconInput, tt: number): void => {
     if (dead) return;
+    // past the budget, a scrub shows the nearer endpoint
+    if (
+      whenRegion(
+        icon,
+        () => seek(icon, tt),
+        () => {
+          if (tt >= 0.5) setNow(icon);
+        },
+      )
+    )
+      return;
+    pending = null;
     const reuse = !rest && plan !== null && icon === target;
     stop();
     spring.v = 0; // controlled mode: no inherited velocity
@@ -255,23 +511,34 @@ export function createMorph(
     render(tt);
   };
 
+  const morphTo = (icon: IconInput, sp?: SpringPreset | MorphOptions): void => {
+    if (dead) return;
+    if (icon === target && (rest || flying)) return; // already there / en route
+    if (motionOff()) {
+      setNow(icon);
+      return;
+    }
+    if (
+      whenRegion(
+        icon,
+        () => morphTo(icon, sp),
+        () => setNow(icon),
+      )
+    )
+      return;
+    pending = null;
+    const { k, c } = resolveSpring(sp);
+    spring.config(k, c);
+    retarget(icon);
+    spring.start();
+    if (!flying) {
+      flying = true;
+      addTicker(tick);
+    }
+  };
+
   return {
-    morphTo(icon, sp) {
-      if (dead) return;
-      if (icon === target && (rest || flying)) return; // already there / en route
-      if (motionOff()) {
-        setNow(icon);
-        return;
-      }
-      const { k, c } = resolveSpring(sp);
-      spring.config(k, c);
-      retarget(icon);
-      spring.start();
-      if (!flying) {
-        flying = true;
-        addTicker(tick);
-      }
-    },
+    morphTo,
     set(icon) {
       if (dead) return;
       setNow(icon);
@@ -289,9 +556,16 @@ export function createMorph(
     set reducedMotion(v: ReducedMotionMode) {
       reducedMotion = v;
     },
+    get strokeWidth() {
+      return strokeWidth;
+    },
+    set strokeWidth(v: number) {
+      strokeWidth = v;
+    },
     destroy() {
       stop();
       dead = true;
+      pending = null;
       plan = null;
       out = null;
       closed = null;

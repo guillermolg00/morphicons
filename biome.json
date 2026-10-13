@@ -15,7 +15,9 @@
       "playground/**/*.ts",
       "playground/**/*.mjs",
       "!playground/vendor-icons.ts",
-      "scripts/**/*.ts"
+      "scripts/**/*.ts",
+      "bench/**/*.ts",
+      "!playground/vendor-regions.ts"
     ]
   },
   "overrides": [

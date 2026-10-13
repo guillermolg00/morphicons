@@ -22,7 +22,7 @@ const GLOBAL_EPS = 5e-3;
 /** Bounds for exhaustive matching; above them it falls back to greedy with
  *  repair. 8! = 40 320 permutations / 1e5 assignments — both sub-ms. */
 const PERM_MAX = 8;
-const SURJ_MAX = 1e5;
+export const SURJ_MAX = 1e5;
 
 export interface Similarity {
   theta: number;
@@ -57,6 +57,9 @@ export interface PlanItem {
   /** true if both endpoints are closed loops: the subpath flies with Z.
    *  Closed → open flies open: the loop opens at the chosen cut. */
   closed: boolean;
+  /** Region plans only: the item is a hole (negative winding). Collapsing
+   *  and growing holes are items too — their far endpoint is one point. */
+  hole?: boolean;
   /** Block transport (set by the global hybrid, else null): mid-flight the
    *  centroid rides the shared similarity around the global centroid instead
    *  of lerping — off = c_A − g_A; drift closes c(1) = c_B exactly. */
@@ -160,6 +163,7 @@ export function alignPair(
   bPts: Float64Array,
   aClosed = false,
   bClosed = false,
+  allowReverse = true,
 ): Alignment {
   const ca = centroid(aPts);
   const cb = centroid(bPts);
@@ -169,7 +173,9 @@ export function alignPair(
   let bestScore = Number.POSITIVE_INFINITY;
   let best = base;
   let sim: Similarity = { theta: 0, sigma: 1, res: 0 };
-  for (let dir = 0; dir < 2; dir++) {
+  // Regions lock the traversal direction: reversing a contour flips its
+  // winding, and under the nonzero rule a hole would paint mid-flight.
+  for (let dir = 0; dir < (allowReverse ? 2 : 1); dir++) {
     const walk = dir ? reversePts(base) : base;
     for (let off = 0; off < offs; off++) {
       const cand = off ? rotatePts(walk, off) : walk;
@@ -188,7 +194,7 @@ export function alignPair(
 }
 
 // Cost matrix dist(centroids) + LEN_WEIGHT·|ΔL| between all pairs.
-function costMatrix(A: Float64Array[], B: Float64Array[]): number[][] {
+export function costMatrix(A: Float64Array[], B: Float64Array[]): number[][] {
   const cbs = B.map(centroid);
   const lbs = B.map(polyLen);
   return A.map((a) => {
@@ -300,7 +306,7 @@ function bestSurjection(C: number[][]): number[] {
 // chosen correspondence. If the global residual ≈ 0 the whole icon is
 // congruent and every item shares (θ, σ): coherent block rotation (keeps a
 // symmetric subpath from picking the opposite spin).
-function applyGlobal(items: PlanItem[], n: number): void {
+export function applyGlobal(items: PlanItem[], n: number): void {
   const T = items.length * n;
   const ga = new Float64Array(2 * T);
   const gb = new Float64Array(2 * T);
@@ -352,18 +358,12 @@ function applyGlobal(items: PlanItem[], n: number): void {
   }
 }
 
-/** Builds the morph plan between two lists of sampled subpaths. The plan is
- *  cacheable and serializable; it accepts any list — including intermediate
- *  shapes (interruptions). */
-export function buildPlan(
-  srcSubs: readonly Sampled[],
-  dstSubs: readonly Sampled[],
-): MorphPlan {
-  const p = srcSubs.length;
-  const q = dstSubs.length;
-  if (p === 0 || q === 0) throw new Error("morphicons: icon has no subpaths");
-  const A = srcSubs.map((s) => s.pts);
-  const B = dstSubs.map((s) => s.pts);
+// Pairs every subpath with a partner: a minimum-cost permutation when the
+// counts match, a surjection from the large side otherwise (leftovers
+// duplicate in place — "cell division", never a collapse).
+export function pairUp(A: Float64Array[], B: Float64Array[]): Array<[number, number]> {
+  const p = A.length;
+  const q = B.length;
   const pairs: Array<[number, number]> = [];
   if (p === q) {
     const perm = bestPermutation(costMatrix(A, B));
@@ -375,39 +375,66 @@ export function buildPlan(
     const f = bestSurjection(costMatrix(A, B));
     for (let i = 0; i < p; i++) pairs.push([i, f[i]]);
   }
-  const n = A[0].length / 2;
-  const items: PlanItem[] = pairs.map(([si, di]) => {
-    const al = alignPair(A[si], B[di], srcSubs[si].closed, dstSubs[di].closed);
-    const a = al.a;
-    const aC = new Float64Array(2 * n);
-    const bT = new Float64Array(2 * n);
-    const bO = new Float64Array(2 * n);
-    const cos = Math.cos(-al.theta);
-    const sin = Math.sin(-al.theta);
-    for (let i = 0; i < n; i++) {
-      aC[2 * i] = a[2 * i] - al.ca[0];
-      aC[2 * i + 1] = a[2 * i + 1] - al.ca[1];
-      const bx = al.b[2 * i] - al.cb[0];
-      const by = al.b[2 * i + 1] - al.cb[1];
-      bT[2 * i] = (bx * cos - by * sin) / al.sigma;
-      bT[2 * i + 1] = (bx * sin + by * cos) / al.sigma;
-      bO[2 * i] = al.b[2 * i];
-      bO[2 * i + 1] = al.b[2 * i + 1];
-    }
-    return {
-      a,
-      aC,
-      bT,
-      bO,
-      ca: al.ca,
-      cb: al.cb,
-      theta: al.theta,
-      lnSigma: Math.log(al.sigma),
-      res: al.res,
-      closed: srcSubs[si].closed && dstSubs[di].closed,
-      block: null,
-    };
-  });
-  if (items.length > 1) applyGlobal(items, n);
-  return { items, n };
+  return pairs;
+}
+
+// Aligns one pair and packs it as a plan item (frames, similarity, raw B).
+export function makeItem(
+  aPts: Float64Array,
+  bPts: Float64Array,
+  aClosed: boolean,
+  bClosed: boolean,
+  allowReverse: boolean,
+): PlanItem {
+  const n = aPts.length / 2;
+  const al = alignPair(aPts, bPts, aClosed, bClosed, allowReverse);
+  const a = al.a;
+  const aC = new Float64Array(2 * n);
+  const bT = new Float64Array(2 * n);
+  const bO = new Float64Array(2 * n);
+  const cos = Math.cos(-al.theta);
+  const sin = Math.sin(-al.theta);
+  for (let i = 0; i < n; i++) {
+    aC[2 * i] = a[2 * i] - al.ca[0];
+    aC[2 * i + 1] = a[2 * i + 1] - al.ca[1];
+    const bx = al.b[2 * i] - al.cb[0];
+    const by = al.b[2 * i + 1] - al.cb[1];
+    bT[2 * i] = (bx * cos - by * sin) / al.sigma;
+    bT[2 * i + 1] = (bx * sin + by * cos) / al.sigma;
+    bO[2 * i] = al.b[2 * i];
+    bO[2 * i + 1] = al.b[2 * i + 1];
+  }
+  return {
+    a,
+    aC,
+    bT,
+    bO,
+    ca: al.ca,
+    cb: al.cb,
+    theta: al.theta,
+    lnSigma: Math.log(al.sigma),
+    res: al.res,
+    closed: aClosed && bClosed,
+    block: null,
+  };
+}
+
+/** Builds the morph plan between two lists of sampled subpaths. The plan is
+ *  cacheable and serializable; it accepts any list — including intermediate
+ *  shapes (interruptions). Filled regions use buildRegionPlan (lazy chunk,
+ *  src/region/plan.ts) instead. */
+export function buildPlan(
+  srcSubs: readonly Sampled[],
+  dstSubs: readonly Sampled[],
+): MorphPlan {
+  const p = srcSubs.length;
+  const q = dstSubs.length;
+  if (p === 0 || q === 0) throw new Error("morphicons: icon has no subpaths");
+  const A = srcSubs.map((s) => s.pts);
+  const B = dstSubs.map((s) => s.pts);
+  const items = pairUp(A, B).map(([si, di]) =>
+    makeItem(A[si], B[di], srcSubs[si].closed, dstSubs[di].closed, true),
+  );
+  if (items.length > 1) applyGlobal(items, A[0].length / 2);
+  return { items, n: A[0].length / 2 };
 }

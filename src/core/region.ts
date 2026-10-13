@@ -1,0 +1,49 @@
+/* Paint model and region sampling. A morph between two stroke icons flies
+   as centerlines (the historical pipeline, untouched). Any pair where one
+   side is painted by FILL flies as REGIONS: both endpoints are reduced to
+   the visible surface — closed contours, outers wound positive and holes
+   negative under the nonzero rule — so a cross made of two overlapping
+   rectangles and a cross drawn as one outline are the same geometry.
+
+   This module is the cheap, always-present half (pure, a few hundred
+   bytes): it reads the paint of an icon. Producing the region (stroke
+   outlining, unions, fill rules), sampling it and planning region morphs
+   is the lazy half in src/region/. */
+
+import type { IconInput } from "./types";
+
+/** How an icon is painted: centerlines with a stroke, or filled surface. */
+export type Paint = "stroke" | "fill";
+
+/** Attribute that marks an IconNode as an already-normalized region (the
+ *  output of `toRegion`): one `<path>` of non-overlapping closed contours,
+ *  outers positive, holes negative. Normalization skips it. */
+export const REGION_ATTR = "data-region";
+
+const painted = (v: unknown): boolean =>
+  v !== undefined && String(v).trim().toLowerCase() !== "none";
+
+/** Paint of an icon. Raw `d` strings and IconNodes that never declare a
+ *  painted fill are stroke icons — the historical contract, so every
+ *  existing input keeps its meaning. One element with a painted `fill` makes
+ *  the whole icon a fill icon (mixed stroke+fill icons need the region path
+ *  too: their silhouette is not a set of centerlines). */
+export function paintOf(icon: IconInput): Paint {
+  if (typeof icon === "string") return "stroke";
+  for (const [, a] of icon) if (painted(a.fill)) return "fill";
+  return "stroke";
+}
+
+/** True when the icon is already a normalized region (no work left). */
+export function isRegion(icon: IconInput): boolean {
+  return typeof icon !== "string" && icon.length === 1 && REGION_ATTR in icon[0][1];
+}
+
+/** Shoelace signed area of a closed point cloud (SVG axes: y down). */
+export function signedArea(p: Float64Array): number {
+  const n = p.length / 2;
+  let a = 0;
+  for (let i = 0, j = n - 1; i < n; j = i++)
+    a += p[2 * j] * p[2 * i + 1] - p[2 * i] * p[2 * j + 1];
+  return a / 2;
+}
