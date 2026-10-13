@@ -122,6 +122,7 @@
     "play": "bun ./playground/index.html",
     "play:regions": "bun scripts/serve-regions.ts",
     "bench:regions": "bun bench/region.bench.ts",
+    "bench:topology": "bun bench/region-topology.ts",
     "lint": "biome check .",
     "format": "biome check --write .",
     "build": "tsdown && bun scripts/build-svelte.ts && bun scripts/build-astro.ts",
@@ -140,7 +141,7 @@
       "name": "core + dom (createMorph + scheduler)",
       "path": "dist/dom.js",
       "import": "*",
-      "limit": "9 KB",
+      "limit": "8.5 KB",
       "gzip": true,
       "ignore": [
         "./region.js"
@@ -150,7 +151,7 @@
       "name": "region normalizer (morphicons/region standalone; lazy chunk of every binding)",
       "path": "dist/region.js",
       "import": "*",
-      "limit": "10 KB",
+      "limit": "10.7 KB",
       "gzip": true
     },
     {
@@ -188,7 +189,7 @@
       "ignore": [
         "./region.js"
       ],
-      "limit": "10 KB",
+      "limit": "9.5 KB",
       "gzip": true
     },
     {
@@ -205,7 +206,7 @@
       "ignore": [
         "./region.js"
       ],
-      "limit": "10 KB",
+      "limit": "9.5 KB",
       "gzip": true
     },
     {
@@ -215,7 +216,7 @@
       "ignore": [
         "./region.js"
       ],
-      "limit": "9.7 KB",
+      "limit": "9 KB",
       "gzip": true
     },
     {
@@ -231,7 +232,7 @@
       "name": "core + dom + element (<morph-icon> custom element)",
       "path": "dist/element.js",
       "import": "*",
-      "limit": "11 KB",
+      "limit": "10.3 KB",
       "gzip": true,
       "ignore": [
         "./region.js"

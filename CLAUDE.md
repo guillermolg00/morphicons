@@ -13,14 +13,16 @@ The library is complete: `src/core/` (pure pipeline: parse → normalize F.6 →
 ## Commands
 
 ```bash
-bun test                   # full suite (281 tests) — always green
+bun test                   # full suite (293 tests) — always green
 bun run typecheck          # strict ×7: root (core+dom+adapters WITHOUT lib DOM), playground, react, react-native, vue, svelte, element
 bunx biome check --write . # lint + format
 bun run build              # tsdown (entries index, dom, adapters, react, react-native, vue, svelte-shared, element;
                            # shared core chunk) + scripts/build-svelte.ts (dist/svelte.{js,d.ts} + MorphIcon.svelte)
                            # + scripts/build-astro.ts (dist/MorphIcon.astro + astro.d.ts)
-bun run size               # size gates (7 / 9 / 10 / 14.3 / 10 / 9.7 / 1.4 / 11 / 1.75 KB gzip + region 10 + adapters 5.7 / 4.7 / 0.8 / 0.55)
+bun run size               # size gates (7 / 8.5 / 9.5 / 14.3 / 9.5 / 9 / 1.4 / 10.3 / 1.75 KB gzip + region 10.7 + adapters 5.7 / 4.7 / 0.8 / 0.55)
 bun run play               # playground → http://localhost:3000 (HMR)
+bun run play:regions       # regions preview (lazy chunk, network lab) on the tailnet
+bun run bench:topology     # every region pair: endpoints exact, no hole painting mid-flight, spins
 node spike/test.js         # original spike spec → ALL OK
 bun playground/extract-vendor-icons.mjs  # regenerate vendored Feather/Tabler icons
 ```

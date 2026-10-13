@@ -212,67 +212,6 @@ const quietPreload = (): void => {
  *  on in the background and the next morph flies. */
 const REGION_WAIT_MS = 100;
 
-// Region forms by stroke width (a stroke icon outlines differently per
-// width; a fill icon ignores it). Strings get a small bounded cache.
-const regionForms = new WeakMap<IconNode, Map<number, IconNode>>();
-const regionStrings = new Map<string, IconNode>();
-const regionSamples = new WeakMap<IconNode, Sampled[]>();
-const regionPlans = new WeakMap<IconNode, WeakMap<IconNode, MorphPlan>>();
-
-function regionOf(icon: IconInput, sw: number): IconNode {
-  if (isRegion(icon)) return icon as IconNode;
-  const mod = regionMod as RegionModule;
-  const width = paintOf(icon) === "fill" ? 0 : sw;
-  if (typeof icon === "string") {
-    const key = `${width}|${icon}`;
-    let r = regionStrings.get(key);
-    if (!r) {
-      r = mod.toRegion(icon, { strokeWidth: sw });
-      if (regionStrings.size >= 64)
-        regionStrings.delete(regionStrings.keys().next().value as string);
-      regionStrings.set(key, r);
-    }
-    return r;
-  }
-  let byWidth = regionForms.get(icon);
-  if (!byWidth) {
-    byWidth = new Map();
-    regionForms.set(icon, byWidth);
-  }
-  let r = byWidth.get(width);
-  if (!r) {
-    r = mod.toRegion(icon, { strokeWidth: sw });
-    byWidth.set(width, r);
-  }
-  return r;
-}
-
-function regionSampledOf(region: IconNode): Sampled[] {
-  let s = regionSamples.get(region);
-  if (!s) {
-    s = (regionMod as RegionModule).resampleRegion(region);
-    regionSamples.set(region, s);
-  }
-  return s;
-}
-
-function regionPlanBetween(src: IconNode, dst: IconNode): MorphPlan {
-  let inner = regionPlans.get(src);
-  if (!inner) {
-    inner = new WeakMap();
-    regionPlans.set(src, inner);
-  }
-  let p = inner.get(dst);
-  if (!p) {
-    p = (regionMod as RegionModule).buildRegionPlan(
-      regionSampledOf(src),
-      regionSampledOf(dst),
-    );
-    inner.set(dst, p);
-  }
-  return p;
-}
-
 // Fill rule an unnormalized fill icon renders with at rest: evenodd only if
 // every element asks for it (Heroicons solid), else nonzero (Material).
 function restRule(icon: IconInput): string {
@@ -336,7 +275,10 @@ export function createMorph(
       el.setAttribute("d", canonicalD(ic));
       paintAs("stroke");
     } else if (regionMod || isRegion(ic)) {
-      el.setAttribute("d", canonicalD(regionMod ? regionOf(ic, strokeWidth) : ic));
+      el.setAttribute(
+        "d",
+        canonicalD(regionMod ? regionMod.regionOf(ic, strokeWidth) : ic),
+      );
       paintAs("fill");
     } else {
       el.setAttribute("d", canonicalD(ic));
@@ -400,15 +342,6 @@ export function createMorph(
     }));
   };
 
-  // The current shape as a REGION plan source. Mid-flight centerlines (a
-  // stroke morph interrupted toward a fill icon) are outlined as they are.
-  const regionSnapshot = (): Sampled[] => {
-    if (rest || !plan || !out) return regionSampledOf(regionOf(target, strokeWidth));
-    if (regionFlight) return snapshot();
-    const mod = regionMod as RegionModule;
-    return mod.resampleRegion(regionOf(serialize(out, closed ?? undefined), strokeWidth));
-  };
-
   /** A morph from the current shape to `icon` needs regions when either
    *  side is filled, or when the shape in flight already is a region. */
   const needsRegion = (icon: IconInput): boolean =>
@@ -416,13 +349,17 @@ export function createMorph(
 
   const retarget = (icon: IconInput): void => {
     if (needsRegion(icon)) {
-      const dst = regionOf(icon, strokeWidth);
-      plan = rest
-        ? regionPlanBetween(regionOf(target, strokeWidth), dst)
-        : (regionMod as RegionModule).buildRegionPlan(
-            regionSnapshot(),
-            regionSampledOf(dst),
-          );
+      // from rest (cached), or from the shape in flight: a region as it is,
+      // centerlines (a stroke morph interrupted toward a fill icon) outlined
+      const mod = regionMod as RegionModule;
+      plan =
+        rest || !out
+          ? mod.regionPlan(target, icon, strokeWidth)
+          : mod.regionPlanFrom(
+              regionFlight ? snapshot() : serialize(out, closed ?? undefined),
+              icon,
+              strokeWidth,
+            );
       regionFlight = true;
       paintAs("fill");
     } else {

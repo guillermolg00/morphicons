@@ -22,8 +22,10 @@
    Import it directly to normalize ahead of time (module scope or build). */
 
 import { iconToCubics } from "../core/normalize";
+import type { MorphPlan } from "../core/plan";
 import { isRegion, paintOf, REGION_ATTR } from "../core/region";
-import type { IconInput, IconNode, IconNodeAttrs } from "../core/types";
+import type { IconInput, IconNode, IconNodeAttrs, Sampled } from "../core/types";
+import { buildRegionPlan, resampleRegion } from "./plan";
 
 export interface RegionOptions {
   /** Width for stroked elements that don't declare `stroke-width` (Lucide
@@ -537,5 +539,88 @@ export function toRegion(input: IconInput, options?: RegionOptions): IconNode {
   ];
 }
 
+// ---------------------------------------------------------------------------
+// Driver hooks: what createMorph calls once this chunk is loaded. Region
+// forms, their samples and rest→target plans are cached by reference here,
+// not in the driver, so stroke-only apps don't carry any of it. A module
+// passed to setRegionLoader must provide these three.
+
+const forms = new WeakMap<IconNode, Map<number, IconNode>>();
+const strings = new Map<string, IconNode>(); // small and bounded
+const samples = new WeakMap<IconNode, Sampled[]>();
+const plans = new WeakMap<IconNode, WeakMap<IconNode, MorphPlan>>();
+
+/** The region the driver draws for an icon (cached): a stroke icon
+ *  outlined at the element's stroke width, a fill icon as is. */
+export function regionOf(icon: IconInput, strokeWidth: number): IconNode {
+  if (isRegion(icon)) return icon as IconNode;
+  // a fill icon ignores the width: one form for every width
+  const width = paintOf(icon) === "fill" ? 0 : strokeWidth;
+  if (typeof icon === "string") {
+    const key = `${width}|${icon}`;
+    let r = strings.get(key);
+    if (!r) {
+      r = toRegion(icon, { strokeWidth });
+      if (strings.size >= 64) strings.delete(strings.keys().next().value as string);
+      strings.set(key, r);
+    }
+    return r;
+  }
+  let byWidth = forms.get(icon);
+  if (!byWidth) {
+    byWidth = new Map();
+    forms.set(icon, byWidth);
+  }
+  let r = byWidth.get(width);
+  if (!r) {
+    r = toRegion(icon, { strokeWidth });
+    byWidth.set(width, r);
+  }
+  return r;
+}
+
+function sampledOf(region: IconNode): Sampled[] {
+  let s = samples.get(region);
+  if (!s) {
+    s = resampleRegion(region);
+    samples.set(region, s);
+  }
+  return s;
+}
+
+/** Region plan from `src` at rest to `dst` (cached by reference). */
+export function regionPlan(
+  src: IconInput,
+  dst: IconInput,
+  strokeWidth: number,
+): MorphPlan {
+  const a = regionOf(src, strokeWidth);
+  const b = regionOf(dst, strokeWidth);
+  let inner = plans.get(a);
+  if (!inner) {
+    inner = new WeakMap();
+    plans.set(a, inner);
+  }
+  let p = inner.get(b);
+  if (!p) {
+    p = buildRegionPlan(sampledOf(a), sampledOf(b));
+    inner.set(b, p);
+  }
+  return p;
+}
+
+/** Region plan from the shape in flight to `dst` (never cached): region
+ *  samples as they are, or a centerline `d` (a stroke morph interrupted
+ *  toward a fill icon), outlined as it is. */
+export function regionPlanFrom(
+  shape: Sampled[] | string,
+  dst: IconInput,
+  strokeWidth: number,
+): MorphPlan {
+  const a =
+    typeof shape === "string" ? resampleRegion(regionOf(shape, strokeWidth)) : shape;
+  return buildRegionPlan(a, sampledOf(regionOf(dst, strokeWidth)));
+}
+
 export { isRegion, type Paint, paintOf } from "../core/region";
-export { buildRegionPlan, resampleRegion } from "./plan";
+export { buildRegionPlan, resampleRegion };
