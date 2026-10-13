@@ -75,6 +75,7 @@ const sw = $derived(
   viewBox="0 0 24 24"
   fill="none"
   stroke={color}
+  {color}
   stroke-width={sw}
   stroke-linecap="round"
   stroke-linejoin="round"

@@ -242,6 +242,7 @@ export const MorphIcon = defineComponent({
           viewBox: "0 0 24 24",
           fill: "none",
           stroke: props.color,
+          color: props.color,
           "stroke-width": sw,
           "stroke-linecap": "round",
           "stroke-linejoin": "round",

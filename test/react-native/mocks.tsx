@@ -3,8 +3,9 @@
    mock.module BEFORE the binding is imported (test files import this module
    statically and load the binding with a dynamic import). The mocks are
    faithful where it matters: Path is a class component whose ref exposes
-   setNativeProps writing straight to the rendered element — the exact
-   contract the binding's PathEl shim relies on — and AccessibilityInfo is
+   setNativeProps writing straight to the rendered element (d and paint) —
+   the exact contract the binding's PathEl shim relies on — and
+   AccessibilityInfo is
    fully controllable (initial query + reduceMotionChanged subscription). */
 
 import { mock } from "bun:test";
@@ -27,11 +28,27 @@ export function fireReduceMotion(value: boolean): void {
   rm.listener?.(value);
 }
 
-class MockPath extends Component<{ d?: string }> {
+interface MockPathProps {
+  d?: string;
+  fill?: string;
+  stroke?: string;
+  fillRule?: string;
+}
+
+// Native prop → the attribute the suites assert (react-dom spelling).
+const ATTR: Record<string, string> = { fillRule: "fill-rule" };
+const PAINT = ["fill", "stroke", "fillRule"] as const;
+
+class MockPath extends Component<MockPathProps> {
   el: Element | null = null;
 
   setNativeProps(props: Record<string, unknown>): void {
-    for (const key of Object.keys(props)) this.el?.setAttribute(key, String(props[key]));
+    for (const key of Object.keys(props)) this.write(key, props[key]);
+  }
+
+  write(key: string, value: unknown): void {
+    if (value === undefined) this.el?.removeAttribute(ATTR[key] ?? key);
+    else this.el?.setAttribute(ATTR[key] ?? key, String(value));
   }
 
   /* Fabric fidelity (issue #25): on the New Architecture every commit rebuilds
@@ -41,11 +58,16 @@ class MockPath extends Component<{ d?: string }> {
      the web — the reconciliation is replayed here on every update. */
   override componentDidUpdate(): void {
     this.el?.setAttribute("d", String(this.props.d ?? ""));
+    // paint too: an undeclared prop resets to the default (inherit)
+    for (const key of PAINT) this.write(key, this.props[key]);
   }
 
   override render(): ReactNode {
     return createElement("path", {
       d: this.props.d,
+      fill: this.props.fill,
+      stroke: this.props.stroke,
+      "fill-rule": this.props.fillRule,
       ref: (el: Element | null) => {
         this.el = el;
       },

@@ -315,6 +315,7 @@ export class MorphIconElement extends Base implements MorphHandle {
     svg.setAttribute("width", this.#size);
     svg.setAttribute("height", this.#size);
     svg.setAttribute("stroke", this.#color);
+    svg.setAttribute("color", this.#color); // a filled path's currentColor
     const sw = this.#absoluteStrokeWidth
       ? String((Number(this.#strokeWidth) * 24) / Number(this.#size))
       : this.#strokeWidth;

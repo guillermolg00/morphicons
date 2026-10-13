@@ -8,7 +8,7 @@ import { createApp, h, nextTick, reactive, shallowRef } from "vue";
 import type { MorphHandle } from "../../src/vue/index";
 import { MorphIcon } from "../../src/vue/index";
 import { frame, pendingFrames, registerDom, settleAll } from "../client-dom";
-import { ICONS } from "../helpers";
+import { FILL_DISC, ICONS } from "../helpers";
 
 registerDom();
 
@@ -28,6 +28,7 @@ function mountIcon(initial: Props) {
   app.mount(container);
   const instance = {
     d: (): string => container.querySelector("path")?.getAttribute("d") ?? "",
+    svg: (): Element | null => container.querySelector("svg"),
     update: async (next: Props): Promise<void> => {
       for (const key of Object.keys(props)) delete props[key];
       Object.assign(props, next);
@@ -191,5 +192,16 @@ describe("MorphIcon (Vue reduced motion)", () => {
     expect(pendingFrames()).toBeGreaterThan(0);
     settleAll();
     expect(m.d()).toBe(ICONS.check);
+  });
+});
+
+describe("MorphIcon (Vue paint)", () => {
+  test("a fill icon paints currentColor, and the svg's color is the prop", () => {
+    const m = mountIcon({ icon: FILL_DISC, color: "#14854f" });
+    const svg = m.svg();
+    expect(svg?.getAttribute("color")).toBe("#14854f");
+    expect(svg?.getAttribute("stroke")).toBe("#14854f");
+    expect(svg?.querySelector("path")?.getAttribute("fill")).toBe("currentColor");
+    m.unmount();
   });
 });

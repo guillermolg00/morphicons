@@ -1,4 +1,5 @@
 import { expect } from "bun:test";
+import type { IconNode } from "../src/core/types";
 import { resampleIcon, type Sampled } from "../src/index";
 
 /** The 6 reference icons as real Lucide `d` attributes. They exercise H/V,
@@ -12,6 +13,11 @@ export const ICONS: Record<string, string> = {
   "arrow-down": "M12 5v14M19 12l-7 7-7-7",
   check: "M20 6 9 17l-5-5",
 };
+
+/** A fill-drawn icon (Material/Heroicons-solid style): paints currentColor. */
+export const FILL_DISC: IconNode = [
+  ["circle", { cx: 12, cy: 12, r: 9, fill: "currentColor" }],
+];
 
 export const N = 64;
 

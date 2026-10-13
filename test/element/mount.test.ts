@@ -12,7 +12,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { IconInput } from "../../src/core/types";
 import { defineMorphIcon, MorphIconElement } from "../../src/element/index";
 import { frame, pendingFrames, registerDom, settleAll } from "../client-dom";
-import { ICONS } from "../helpers";
+import { FILL_DISC, ICONS } from "../helpers";
 
 registerDom();
 defineMorphIcon();
@@ -186,6 +186,7 @@ describe("MorphIcon (custom element attributes)", () => {
     m.el.setAttribute("color", "tomato");
     expect(svg?.getAttribute("width")).toBe("32");
     expect(svg?.getAttribute("stroke")).toBe("tomato");
+    expect(svg?.getAttribute("color")).toBe("tomato"); // a filled path's currentColor
     expect(m.d()).toBe(ICONS.menu);
     expect(pendingFrames()).toBe(0);
   });
@@ -432,5 +433,16 @@ describe("MorphIcon (custom element reduced motion)", () => {
     expect(pendingFrames()).toBeGreaterThan(0);
     settleAll();
     expect(m.d()).toBe(ICONS.check);
+  });
+});
+
+describe("MorphIcon (custom element paint)", () => {
+  test("a fill icon paints currentColor, and the svg's color is the attribute", () => {
+    const m = mountIcon({ icon: FILL_DISC });
+    m.el.setAttribute("color", "#14854f");
+    const svg = m.el.querySelector("svg");
+    expect(svg?.getAttribute("color")).toBe("#14854f");
+    expect(svg?.getAttribute("stroke")).toBe("#14854f");
+    expect(svg?.querySelector("path")?.getAttribute("fill")).toBe("currentColor");
   });
 });

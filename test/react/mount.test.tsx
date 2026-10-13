@@ -12,7 +12,7 @@ import { createRoot } from "react-dom/client";
 import type { MorphHandle, MorphIconProps } from "../../src/react/index";
 import { MorphIcon } from "../../src/react/index";
 import { frame, pendingFrames, registerDom, settleAll } from "../client-dom";
-import { ICONS } from "../helpers";
+import { FILL_DISC, ICONS } from "../helpers";
 
 registerDom();
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -31,6 +31,7 @@ async function mountIcon(props: MorphIconProps) {
   await rerender(props);
   const instance = {
     d: (): string => container.querySelector("path")?.getAttribute("d") ?? "",
+    svg: (): Element | null => container.querySelector("svg"),
     rerender,
     ref,
     unmount: (): Promise<void> =>
@@ -199,5 +200,16 @@ describe("MorphIcon (React reduced motion)", () => {
     expect(pendingFrames()).toBeGreaterThan(0);
     settleAll();
     expect(m.d()).toBe(ICONS.check);
+  });
+});
+
+describe("MorphIcon (React paint)", () => {
+  test("a fill icon paints currentColor, and the svg's color is the prop", async () => {
+    const m = await mountIcon({ icon: FILL_DISC, color: "#14854f" });
+    const svg = m.svg();
+    expect(svg?.getAttribute("color")).toBe("#14854f");
+    expect(svg?.getAttribute("stroke")).toBe("#14854f");
+    expect(svg?.querySelector("path")?.getAttribute("fill")).toBe("currentColor");
+    await m.unmount();
   });
 });

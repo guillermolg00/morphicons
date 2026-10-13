@@ -14,9 +14,10 @@ import { createRoot } from "react-dom/client";
 import "./mocks";
 import type { MorphHandle, MorphIconProps } from "../../src/react-native/index";
 import { frame, pendingFrames, registerDom, settleAll } from "../client-dom";
-import { ICONS } from "../helpers";
+import { FILL_DISC, ICONS } from "../helpers";
 
 const { MorphIcon } = await import("../../src/react-native/index");
+const { preloadRegion } = await import("../../src/dom/index");
 
 registerDom();
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -35,6 +36,8 @@ async function mountIcon(props: MorphIconProps) {
   await rerender(props);
   const instance = {
     d: (): string => container.querySelector("path")?.getAttribute("d") ?? "",
+    paint: (name: string): string | null =>
+      container.querySelector("path")?.getAttribute(name) ?? null,
     rerender,
     ref,
     unmount: (): Promise<void> =>
@@ -96,5 +99,45 @@ describe("MorphIcon (React Native / Fabric commits)", () => {
     expect(advanced).not.toBe(frozen);
     await m.rerender({ from: ICONS.menu, to: ICONS.x, progress: 0.75, color: "#52697b" });
     expect(m.d()).toBe(advanced);
+  });
+});
+
+/* Paint rides the same road as `d`: the driver writes fill / stroke /
+   fill-rule through the shim (setNativeProps), and every commit must
+   declare the live values or Fabric resets them. RN has no cascade, so
+   currentColor / inherit resolve to the color prop. */
+describe("MorphIcon (React Native / paint)", () => {
+  test("a fill icon paints in the color prop and survives unrelated renders", async () => {
+    const m = await mountIcon({ icon: FILL_DISC, color: "#52697b" });
+    expect(m.paint("fill")).toBe("#52697b");
+    expect(m.paint("stroke")).toBe("none");
+    expect(m.paint("fill-rule")).toBe("nonzero");
+    await m.rerender({ icon: FILL_DISC, color: "#52697b", size: 32 });
+    expect(m.paint("fill")).toBe("#52697b");
+    expect(m.paint("stroke")).toBe("none");
+    await m.rerender({ icon: FILL_DISC, color: "#14854f" });
+    expect(m.paint("fill")).toBe("#14854f");
+  });
+
+  test("fill → stroke flies and rests stroked in the color prop", async () => {
+    await preloadRegion();
+    const m = await mountIcon({ icon: FILL_DISC, color: "#52697b" });
+    await m.rerender({ icon: ICONS.x, color: "#52697b" });
+    settleAll();
+    expect(m.d()).toBe(ICONS.x);
+    expect(m.paint("fill")).toBe("none");
+    expect(m.paint("stroke")).toBe("#52697b");
+    await m.rerender({ icon: ICONS.x, color: "#52697b", size: 32 });
+    expect(m.paint("fill")).toBe("none");
+    expect(m.paint("stroke")).toBe("#52697b");
+  });
+
+  test("stroke-only use never declares paint (the path inherits the Svg)", async () => {
+    const m = await mountIcon({ icon: ICONS.menu, color: "#52697b" });
+    await m.rerender({ icon: ICONS.x, color: "#52697b" });
+    settleAll();
+    await m.rerender({ icon: ICONS.x, color: "#14854f" });
+    expect(m.paint("fill")).toBeNull();
+    expect(m.paint("stroke")).toBeNull();
   });
 });

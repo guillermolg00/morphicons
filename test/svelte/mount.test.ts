@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { MorphIconProps } from "../../src/svelte/shared";
 import { frame, pendingFrames, registerDom, settleAll } from "../client-dom";
-import { ICONS } from "../helpers";
+import { FILL_DISC, ICONS } from "../helpers";
 
 registerDom();
 const { flushSync, mount, unmount } = await import("svelte?client");
@@ -24,6 +24,7 @@ function mountIcon(initial: MorphIconProps) {
   let alive = true;
   const api = {
     d: (): string => container.querySelector("path")?.getAttribute("d") ?? "",
+    svg: (): Element | null => container.querySelector("svg"),
     update: (next: MorphIconProps): void => {
       instance.update(next);
       flushSync();
@@ -190,5 +191,16 @@ describe("MorphIcon (Svelte reduced motion)", () => {
     expect(pendingFrames()).toBeGreaterThan(0);
     settleAll();
     expect(m.d()).toBe(ICONS.check);
+  });
+});
+
+describe("MorphIcon (Svelte paint)", () => {
+  test("a fill icon paints currentColor, and the svg's color is the prop", () => {
+    const m = mountIcon({ icon: FILL_DISC, color: "#14854f" });
+    const svg = m.svg();
+    expect(svg?.getAttribute("color")).toBe("#14854f");
+    expect(svg?.getAttribute("stroke")).toBe("#14854f");
+    expect(svg?.querySelector("path")?.getAttribute("fill")).toBe("currentColor");
+    m.unmount();
   });
 });

@@ -75,6 +75,7 @@ describe("MorphIcon (Svelte SSR)", () => {
     expect(html).toContain('width="32"');
     expect(html).toContain('height="32"');
     expect(html).toContain('stroke="#e6a83c"');
+    expect(html).toContain('color="#e6a83c"'); // a filled path's currentColor
     expect(html).toContain('stroke-width="1.5"');
     expect(html).toContain('class="my-icon"');
     expect(html).toContain('data-testid="morph"');

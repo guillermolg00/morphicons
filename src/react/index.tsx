@@ -253,6 +253,8 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
         viewBox="0 0 24 24"
         fill="none"
         stroke={color}
+        // a filled path paints currentColor: same color as the stroke
+        color={color}
         strokeWidth={sw}
         strokeLinecap="round"
         strokeLinejoin="round"
