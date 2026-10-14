@@ -4,23 +4,23 @@ import { DocsButton } from "@/components/docs-button";
 import { GITHUB_URL, SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { Studio } from "@/components/studio";
 
-/* The README is the source of truth for the API and the math. */
+/* The README is the source of truth for the API. */
 const DOCS_URL = `${GITHUB_URL}#readme`;
 
 const STATS: { value: string; caption: string }[] = [
-  { value: "6.5 KB", caption: "core, gzipped, everything included" },
+  { value: "10 KB", caption: "gzip with a framework binding" },
   { value: "0", caption: "runtime dependencies" },
-  { value: "<1 ms", caption: "to plan any morph pair" },
+  { value: "5", caption: "framework bindings, plus vanilla JS" },
   { value: "1", caption: "shared rAF for every icon on screen" },
 ];
 
 const COMPAT = [
   "Lucide",
   "Tabler",
-  "Heroicons outline",
+  "Heroicons",
   "Iconoir",
-  "Akar",
-  "Untitled UI",
+  "Material Symbols",
+  "Phosphor",
   "Hugeicons",
   "shadcn registry",
 ];
@@ -39,8 +39,8 @@ export default function Home() {
             Morph any SVG icon into any other.
           </h1>
           <p className="mx-auto mt-5 max-w-[560px] text-pretty text-lg leading-7 text-body">
-            Animate Lucide, Tabler, Heroicons or any stroke icon set. Optimal rotation
-            solved in closed form, spring physics, zero dependencies.
+            Lucide, Tabler, Heroicons or any icon set, stroked or filled. Spring
+            physics, zero dependencies, nothing to configure.
           </p>
           <div className="mt-8">
             <InstallCommand />
@@ -60,15 +60,13 @@ export default function Home() {
             <div className="grid gap-14 lg:grid-cols-2 lg:gap-20">
               <div>
                 <h2 className="text-3xl font-semibold tracking-[-0.03em] text-ink">
-                  Six kilobytes of math.
+                  Closed-form math, no config.
                 </h2>
                 <p className="mt-5 max-w-[60ch] leading-relaxed text-body">
-                  morphicons solves the optimal similarity between two shapes in closed form
-                  (2D Procrustes): if a pair is congruent under rotation, it rotates; if not,
-                  it morphs in the aligned frame. Nobody declares rotation groups by hand.
-                  Springs are interruptible, corners stay sharp at rest, and the core never
-                  touches the DOM, so React, Vue, Svelte, React Native, Astro, Next.js
-                  and plain JavaScript are all first-class drivers.
+                  morphicons finds the rotation, scale and translation that best map one
+                  icon onto the other (2D Procrustes, in closed form). Shapes that match
+                  under rotation rotate; the rest morph in the aligned frame. Filled icons
+                  morph as filled shapes, through a small chunk that loads on first use.
                 </p>
                 <p className="mt-4 max-w-[60ch] leading-relaxed text-body">
                   Icons are consumed as data, not components: a{" "}
@@ -79,7 +77,7 @@ export default function Home() {
                   <code className="rounded bg-canvas-soft-2 px-1.5 py-0.5 font-mono text-[13px] text-ink">
                     IconNode
                   </code>{" "}
-                  format, structurally typed. No adapters, no per-library setup.
+                  format. No per-library setup.
                 </p>
                 <DocsButton href={DOCS_URL} />
               </div>
@@ -97,7 +95,7 @@ export default function Home() {
             </div>
             <div className="mt-16 border-t border-hairline pt-8">
               <p className="text-sm font-medium text-ink">
-                Works with any stroke icon set — on any grid, via fitIcon.
+                Works with any icon set, stroked or filled — on any grid, via fitIcon.
               </p>
               <ul className="mt-4 flex flex-wrap gap-2">
                 {COMPAT.map((name) => (

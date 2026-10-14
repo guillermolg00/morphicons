@@ -8,10 +8,10 @@ The repo uses [Bun](https://bun.sh) for everything:
 
 ```bash
 bun install
-bun test          # 156 tests / ~13,700 asserts
-bun run typecheck # strict ×6: core+dom without lib DOM, playground, react, react-native, vue, svelte
+bun test          # unit + mount suites
+bun run typecheck # strict, core and dom compiled without the DOM lib
 bun run lint      # biome
-bun run build     # tsdown + scripts/build-svelte.ts → dist/
+bun run build     # tsdown → dist/
 bun run size      # gzip size gates
 bun run play      # playground → http://localhost:3000
 ```

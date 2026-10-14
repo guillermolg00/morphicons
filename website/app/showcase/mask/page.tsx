@@ -29,7 +29,7 @@ export default function MaskShowcasePage() {
         traits={[
           {
             label: "Why this path",
-            body: "You already ship icons as CSS masks: UnoCSS presetIcons, Tailwind icon plugins, plain Iconify. This animates the elements you have instead of asking you to switch to inline SVG. Any stroke-drawn set Iconify carries qualifies.",
+            body: "You already ship icons as CSS masks: UnoCSS presetIcons, Tailwind icon plugins, plain Iconify. This animates the elements you have instead of asking you to switch to inline SVG.",
           },
           {
             label: "How it works",
@@ -37,7 +37,7 @@ export default function MaskShowcasePage() {
           },
           {
             label: "The tradeoff",
-            body: "Every frame re-rasterizes the mask on the main thread, so budget it like a hover effect: toggles, nav, empty states. For icon-heavy views, inline SVG stays leaner. Client-only by nature, and fill-drawn sets (Material Symbols) are rejected up front.",
+            body: "Every frame repaints the mask on the main thread: fine for toggles and nav, inline SVG stays leaner for icon-heavy views. Client-only, and stroke icons only: filled sets (Material Symbols) belong in inline SVG.",
           },
         ]}
       >

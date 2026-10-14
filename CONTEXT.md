@@ -1,6 +1,6 @@
 # morphicons
 
-Universal morphing library for stroke-based icons: any icon morphs into any other, with rotations that emerge from the math. Single context; this file is the glossary of the project's language.
+Universal morphing library for SVG icons, stroked or filled: any icon morphs into any other, with rotations that emerge from the math. Single context; this file is the glossary of the project's language.
 
 ## Language
 
@@ -35,3 +35,11 @@ _Avoid_: state machine, manager, shared hooks
 **Shell**:
 A logic-free component file shipped as source and compiled by the consumer's toolchain (`MorphIcon.svelte`, `MorphIcon.astro`): it only wires a reactive surface to typechecked logic, so it contains nothing that can be wrong on its own — which is what makes never typechecking it acceptable.
 _Avoid_: wrapper, thin component (as a name; as a description it's fine)
+
+**Region**:
+An icon reduced to its visible surface: closed, non-overlapping contours, outers wound positive and holes negative under nonzero. Any pair with a filled side morphs region to region.
+_Avoid_: fill mode, outline path
+
+**Region chunk**:
+`morphicons/region`, the normalizer and region planner, loaded with `import()` the first time a filled icon shows up (docs/adr/0004).
+_Avoid_: fill plugin, addon

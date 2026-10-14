@@ -5,7 +5,7 @@ import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 export const metadata: Metadata = {
 	title: "Roadmap",
 	description:
-		"Where morphicons is heading: format adapters for CSS masks and canvas, hardened public boundaries, SVG Doctor, a shareable Studio and a custom animation editor.",
+		"Where morphicons is heading: filled icons, adapter ergonomics, SVG Doctor, a shareable Studio and a custom animation editor.",
 	alternates: { canonical: "/roadmap" },
 };
 
@@ -31,75 +31,41 @@ const GROUPS: Group[] = [
 		dot: "bg-ink",
 		items: [
 			{
-				title: "Universal morphing core — v1.0",
-				note: "Any stroke icon morphs into any other: optimal rotation in closed form, spring physics, zero dependencies. DOM and React drivers included.",
+				title: "Core and morphicons.com",
+				note: "Any icon morphs into any other: optimal rotation in closed form, spring physics, zero dependencies. The Studio scrubs every pair mid-flight.",
 			},
 			{
-				title: "morphicons.com",
-				note: "The interactive Studio: every pair, every library, scrubbable mid-flight.",
-			},
-			{
-				title: "React, Vue and Svelte drivers",
+				title: "Five bindings",
 				note: (
 					<>
-						<Code>morphicons/react</Code> <Code>morphicons/vue</Code>{" "}
-						<Code>morphicons/svelte</Code>: <Code>MorphIcon</Code> experience: SSR first
-						paint, accessibility included
+						<Code>react</Code> <Code>vue</Code> <Code>svelte</Code>{" "}
+						<Code>react-native</Code> <Code>element</Code>, plus an Astro shell. One
+						lifecycle contract, exact SSR, accessibility built in.
 					</>
 				),
 			},
 			{
-				title: "React, Vue and Svelte lifecycle hardening",
-				note: "One documented contract for the three drivers — icons that arrive late, explicit mode precedence, clean re-entry — pinned by real client-mount tests.",
-			},
-			{
-				title: "React Native driver",
-				note: (
-					<>
-						<Code>morphicons/react-native</Code>: the DOM-free core beyond the browser —
-						the same <Code>MorphIcon</Code> over react-native-svg, same lifecycle
-						contract, reduced motion from the OS setting
-					</>
-				),
-			},
-			{
-				title: "Component showcase",
-				note: "The icon swaps that show up most in real shadcn/ui apps, as copy-paste components: pick the library, framework, spring and stroke.",
-			},
-			{
-				title: "Reduced motion, as an explicit policy",
+				title: "Reduced motion as a policy",
 				note: (
 					<>
 						<Code>{'reducedMotion: "never" | "user" | "always"'}</Code> on the driver
-						and all four bindings, live at runtime. Motion becomes a product
-						decision instead of a silent global override.
+						and every binding.
 					</>
 				),
 			},
 			{
-				title: "Format adapters: markup in, CSS masks out",
+				title: "Format adapters",
 				note: (
 					<>
-						<Code>morphicons/adapters</Code>: <Code>svgToIcon</Code> parses the SVG an
-						Iconify-style pipeline ships, <Code>maskTarget</Code> morphs mask-styled
-						elements in place (double-buffered so Safari repaints). One opt-in entry,
-						each adapter tree-shakes alone, pinned by per-export size gates.
+						<Code>svgToIcon</Code> reads SVG markup, <Code>maskTarget</Code> morphs
+						CSS-mask icons, <Code>canvasTarget</Code> draws into any canvas. Each
+						tree-shakes alone.
 					</>
 				),
 			},
 			{
-				title: "Canvas adapter",
-				note: (
-					<>
-						<Code>canvasTarget</Code>: any canvas or 2D context as a morph target via
-						Path2D. The icon becomes pixels you own: GPU textures, chart sprites,
-						favicons, OffscreenCanvas. 0.5 KB gzip on top of the driver.
-					</>
-				),
-			},
-			{
-				title: "Adapter showcase",
-				note: "The showcase grew tabs: core, mask and canvas. The canvas tab runs a Mapbox map whose pins morph through interaction states, and a streaming chart whose trend icon rides the data.",
+				title: "Showcase",
+				note: "Copy-paste components for the icon swaps real apps ship, in core, mask and canvas tabs.",
 			},
 		],
 	},
@@ -108,19 +74,21 @@ const GROUPS: Group[] = [
 		dot: "border border-ink bg-canvas",
 		items: [
 			{
+				title: "Filled icons",
+				note: "Material Symbols, Heroicons solid, Phosphor fill: stroked and filled icons morph into each other, through a chunk that loads on first use. In review.",
+			},
+			{
 				title: "Adapter ergonomics",
 				note: (
 					<>
-						<Code>useTarget</Code> so React lifecycles stop hand-rolling
-						destroy/dispose, <Code>elementToIcon</Code> to read the icon an element
-						already renders, and a viewBox parameter across the pipeline for
-						off-grid packs.
+						<Code>useTarget</Code> for React lifecycles and <Code>elementToIcon</Code>{" "}
+						to read the icon an element already renders.
 					</>
 				),
 			},
 			{
 				title: "Bulletproof inputs",
-				note: "Clear errors at every public boundary, malformed paths, invalid springs, mismatched sample sizes.",
+				note: "Clear errors at every public boundary: malformed paths, invalid springs.",
 			},
 		],
 	},
@@ -134,7 +102,7 @@ const GROUPS: Group[] = [
 			},
 			{
 				title: "Shareable Studio",
-				note: "The full morph state, pair, spring, progress, serialized in the URL.",
+				note: "The pair, spring and progress, serialized in the URL.",
 			},
 		],
 	},
@@ -144,19 +112,11 @@ const GROUPS: Group[] = [
 		items: [
 			{
 				title: "Custom Animation Studio",
-				note: "A timeline editor for choreographies beyond the automatic morph, shipped as a separate package.",
+				note: "A timeline editor for choreographies beyond the automatic morph, as a separate package.",
 			},
 			{
 				title: "Type that morphs",
-				note: (
-					<>
-						Regular fonts are filled outlines, off limits by design. But monoline
-						fonts (Hershey, single-stroke plotter faces) are pure centerlines:
-						exactly the core&apos;s contract. Digits first, a counter whose 3
-						bends into 8; then a <Code>textToIcon</Code> adapter for single-line
-						fonts.
-					</>
-				),
+				note: "Single-stroke fonts are pure centerlines: digits first, a counter whose 3 bends into 8.",
 			},
 		],
 	},
@@ -172,8 +132,8 @@ export default function Roadmap() {
 					Roadmap
 				</h1>
 				<p className="mt-4 max-w-[560px] text-lg leading-7 text-body">
-					Where morphicons is heading — hardening and new capabilities,
-					interleaved. No dates: things ship when they feel right.
+					Where morphicons is heading. No dates: things ship when they
+					feel right.
 				</p>
 
 				<div className="mt-14 flex flex-col gap-12">

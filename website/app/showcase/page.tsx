@@ -32,11 +32,11 @@ export default function ShowcasePage() {
           },
           {
             label: "What it weighs",
-            body: "6.6 KB gzip for the core, about 8 KB with a framework binding. Zero runtime dependencies, and subpath exports so you only pay for what you import.",
+            body: "About 10 KB gzip with a framework binding and zero runtime dependencies. Subpath exports: you only pay for what you import.",
           },
           {
             label: "The tradeoff",
-            body: "Icons must be stroke-centerline data: Lucide, Tabler, Heroicons outline, Iconoir. Fill-drawn glyphs have no centerline to morph, so they are rejected up front.",
+            body: "Filled icons need a ~5 KB chunk, fetched the first time one shows up. Until it lands they render close to exact, and a morph may fall back to a shrink-and-grow.",
           },
         ]}
       >

@@ -54,7 +54,7 @@ export default function CanvasShowcasePage() {
 					},
 					{
 						label: "The tradeoff",
-						body: "You own resolution and devicePixelRatio. Color is fixed at target creation, so a live tint happens at composite time (both demos below do exactly that). And the heavy megabytes are the hosts, not the adapter: canvasTarget is 0.5 KB gzip.",
+						body: "You own resolution and devicePixelRatio, and it draws strokes only. Color is fixed at target creation, so a live tint happens at composite time (both demos below do that). canvasTarget itself is 0.5 KB gzip.",
 					},
 				]}
 			>

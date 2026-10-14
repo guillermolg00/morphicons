@@ -176,9 +176,8 @@ export function CodePanel() {
         </pre>
       </div>
       <p className="mt-3 text-sm text-body">
-        That is the whole thing — in React, Vue, Svelte, React Native or Astro (no
-        island needed: the icon upgrades to a web component). No wrappers, no keys,
-        no from/to pairs, no configuration. Swap the pair for any two icons above.
+        That is the whole thing, in React, Vue, Svelte, React Native or Astro. No
+        wrappers, keys or configuration. Swap the pair for any two icons above.
       </p>
     </div>
   );

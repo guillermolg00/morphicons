@@ -19,513 +19,207 @@
   </a>
 </p>
 
-Universal morphing for stroke-based icons (Lucide, Tab
-ler, Heroicons, Iconoir, or your own paths): **any icon morphs into any other** with spring physics. Rotations are never declared by hand — they emerge from the math (2D Procrustes + polar interpolation). Zero runtime dependencies.
+Morph any SVG icon into any other with spring physics. Lucide, Tabler, Heroicons, Material Symbols, Phosphor or your own paths, stroked or filled. Rotations are never declared by hand: they come out of the math. Zero runtime dependencies.
 
 ```tsx
 import { MorphIcon } from "morphicons/react";
-import { Menu, X } from "lucide"; // data, not components
+import { Menu, X } from "lucide"; // icon data, not components
 
 <button onClick={() => setOpen(o => !o)} aria-expanded={open}>
   <MorphIcon icon={open ? X : Menu} />
 </button>
 ```
 
-That's the whole thing. No wrappers, no `AnimatePresence`, no keys, no from/to pairs, no configuration. State lives outside; the animation is an implementation detail the component picks up when the prop changes.
-
-## Why
-
-The usual icon morphs either interpolate raw coordinates (shapes shrink and shear in transit) or require hand-declaring "rotation groups" per icon pair. morphicons solves the optimal similarity between shapes in closed form and interpolates it in its natural space: if a pair is congruent under rotation, it **rotates**; if not, it morphs in the aligned frame. arrow-right → arrow-down yields θ = 90° on its own, without anyone declaring it.
+Change the prop and the icon morphs. No wrappers, keys or per-pair configuration.
 
 ## Install
 
 ```bash
-bun add morphicons        # or npm install / pnpm add
+npm install morphicons
 ```
 
-ESM only. `react` (>= 18), `vue` (>= 3.3), `svelte` (>= 5) and `react-native` (>= 0.71) + `react-native-svg` (>= 14) are optional peers — only needed for `morphicons/react`, `morphicons/vue`, `morphicons/svelte` and `morphicons/react-native`. `morphicons/element` (the `<morph-icon>` custom element) and `morphicons/astro` (its SSR shell) need no peer at all — Astro compiles the shell itself, like every `.astro` component shipped as source.
+ESM only. Framework peers are optional, each needed only by its own entry: `react` ≥ 18, `vue` ≥ 3.3, `svelte` ≥ 5, `react-native` ≥ 0.71 with `react-native-svg` ≥ 14.
 
-**Icons come from a data package, not a component package.** morphicons consumes icon *data* (an `IconNode` or a raw `d` string). For Lucide that means the vanilla `lucide` package: `import { Menu, X } from "lucide"` gives you `IconNode`s, which is why every snippet below says "data, not components". The framework packages (`lucide-react`, `lucide-vue-next`, `@lucide/svelte`, `lucide-react-native`) export components, and `MorphIcon` can't consume those. If your app already renders static icons with one of them, keep it: the data and component packages coexist by design and both tree-shake cleanly, so you only pay for the icons you import. Just keep their versions aligned, so the icons you morph match the ones you render statically.
+**Icons are data.** `MorphIcon` takes an `IconNode` (Lucide's data format) or a `d` string. For Lucide, import from `lucide`, not `lucide-react`: component packages can't be morphed. Both can live in the same app; keep their versions aligned.
+
+| entry | what it gives you |
+|---|---|
+| `morphicons/react` | `<MorphIcon>` for React and Next.js |
+| `morphicons/vue` | `<MorphIcon>` for Vue 3 and Nuxt |
+| `morphicons/svelte` | `<MorphIcon>` for Svelte 5 and SvelteKit |
+| `morphicons/react-native` | `<MorphIcon>` over react-native-svg |
+| `morphicons/astro` | `<MorphIcon>` for Astro, no island needed |
+| `morphicons/element` | `<morph-icon>` custom element for plain HTML |
+| `morphicons/dom` | `createMorph()`, the vanilla driver |
+| `morphicons/adapters` | `svgToIcon`, `maskTarget`, `canvasTarget` |
+| `morphicons` | the pure core: plans and paths, no DOM |
+| `morphicons/region` | the fill normalizer (loaded on demand, see [Fill icons](#fill-icons)) |
 
 ## Usage
 
-### React — three modes
+Every binding has the same three modes:
 
 ```tsx
 import { MorphIcon, type MorphHandle } from "morphicons/react";
 
-// 1. Uncontrolled (90% of uses): change the prop and morphicons animates
-<MorphIcon icon={open ? X : Menu} spring="snappy" />
+// 1. Uncontrolled: change the prop and it animates
+<MorphIcon icon={open ? X : Menu} />
 
-// 2. Controlled (gestures, scroll): explicit progress, no spring
-<MorphIcon from={Menu} to={X} progress={dragProgress} />
+// 2. Controlled: you drive the progress (gestures, scroll)
+<MorphIcon from={Menu} to={X} progress={0.4} />
 
-// 3. Imperative (sequences)
+// 3. Imperative
 const ref = useRef<MorphHandle>(null);
 <MorphIcon ref={ref} icon={Menu} />
 ref.current?.morphTo(Check); // animates
-ref.current?.set(X);         // jumps without animating
+ref.current?.set(X);         // jumps
 ```
 
-Drop-in replacement for lucide-react (the props surface: the `icon` prop takes Lucide *data*, not lucide-react components, see [Install](#install)): `size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `className` and the rest of the `<svg>` props pass straight through. Correct accessibility by default: `aria-hidden` unless you pass `label` (→ `role="img"` + `<title>`). Clean SSR: the server emits the exact static SVG (zero flash, zero layout shift); the runtime is born on hydration. Morphs play regardless of the OS reduce-motion setting by default; opt into honoring it with `reducedMotion="user"` (see [Reduced motion](#reduced-motion-all-five-bindings)).
+| prop | |
+|---|---|
+| `size`, `color`, `strokeWidth`, `absoluteStrokeWidth` | as in lucide-react; any other `<svg>` attribute passes through |
+| `spring` | `"snappy"` (default), `"smooth"`, `"bouncy"` or `{ stiffness, damping }` |
+| `reducedMotion` | `"never"` (default), `"user"` (follow the OS setting) or `"always"` (never animate) |
+| `label` | accessible name; without it the icon is `aria-hidden` |
 
-### Vue — same three modes
+Server rendering emits the exact static SVG, so nothing flashes on hydration. A morph started mid-flight keeps the current velocity.
+
+### Lifecycle contract
+
+The same in every binding:
+
+- Mounting without an icon is fine. The first icon renders without animating; `morphTo` before it acts as `set`.
+- While `from` and `to` are both set, they win over `icon`.
+- Leaving controlled mode and coming back renders like a fresh mount.
+
+### Vue, Svelte, React Native
 
 ```vue
-<script setup lang="ts">
-import { ref } from "vue";
-import { MorphIcon, type MorphHandle } from "morphicons/vue";
-import { Menu, X, Check } from "lucide"; // data, not components
-
-const open = ref(false);
-const morph = ref<MorphHandle | null>(null);
-// morph.value?.morphTo(Check)  → animates
-// morph.value?.set(X)          → jumps without animating
-</script>
-
-<template>
-  <!-- 1. Uncontrolled (90% of uses): change the prop and morphicons animates -->
-  <MorphIcon :icon="open ? X : Menu" spring="snappy" />
-
-  <!-- 2. Controlled (gestures, scroll): explicit progress, no spring -->
-  <MorphIcon :from="Menu" :to="X" :progress="dragProgress" />
-
-  <!-- 3. Imperative (sequences): template ref → morphTo / set -->
-  <MorphIcon ref="morph" :icon="Menu" />
-</template>
+<MorphIcon :icon="open ? X : Menu" />           <!-- Vue: template ref → morphTo / set -->
 ```
-
-Same surface as the React binding: presentation props (`size`, `strokeWidth`, `absoluteStrokeWidth`, `color`; `class`, `style` and the rest of the `<svg>` attrs fall through), the same accessibility defaults (`aria-hidden` unless you pass `label`) and the same clean SSR — works with Nuxt out of the box: the server emits the exact static SVG and the runtime is born on hydration. The binding is a plain render function; no SFC compiler or JSX involved.
-
-### Svelte — same three modes
 
 ```svelte
-<script lang="ts">
-  import { MorphIcon, type MorphHandle } from "morphicons/svelte";
-  import { Menu, X, Check } from "lucide"; // data, not components
-
-  let open = $state(false);
-  let morph = $state<MorphHandle>();
-  // morph?.morphTo(Check)  → animates
-  // morph?.set(X)          → jumps without animating
-</script>
-
-<!-- 1. Uncontrolled (90% of uses): change the prop and morphicons animates -->
-<MorphIcon icon={open ? X : Menu} spring="snappy" />
-
-<!-- 2. Controlled (gestures, scroll): explicit progress, no spring -->
-<MorphIcon from={Menu} to={X} progress={dragProgress} />
-
-<!-- 3. Imperative (sequences): bind:this → morphTo / set -->
-<MorphIcon bind:this={morph} icon={Menu} />
+<MorphIcon icon={open ? X : Menu} />            <!-- Svelte 5: bind:this → morphTo / set -->
 ```
 
-Same surface again: presentation props, `class`/`style`/rest-attr fall-through — fully typed via `svelte/elements`, so SVG attrs, events and ARIA autocomplete and typos fail the build, like lucide-svelte — the same accessibility defaults and the same clean SSR — works with SvelteKit out of the box. Svelte 5 (runes); the component ships as `.svelte` source and your bundler compiles it via the `svelte` export condition, like every Svelte library. If you followed Lucide's official Svelte guide you already have `@lucide/svelte`: keep it for your static icons; `MorphIcon` takes the data exports from the vanilla `lucide` package (see [Install](#install)).
+React Native uses the React API as is. It needs Metro with package `exports` (the default since React Native 0.79).
 
-### React Native — same three modes
+### Astro and plain HTML
 
-```tsx
-import { MorphIcon, type MorphHandle } from "morphicons/react-native";
-import { Menu, X, Check } from "lucide"; // data, not components
-
-// 1. Uncontrolled (90% of uses): change the prop and morphicons animates
-<MorphIcon icon={open ? X : Menu} spring="snappy" />
-
-// 2. Controlled (gestures, scroll): explicit progress, no spring
-<MorphIcon from={Menu} to={X} progress={dragProgress} />
-
-// 3. Imperative (sequences)
-const ref = useRef<MorphHandle>(null);
-<MorphIcon ref={ref} icon={Menu} />
-ref.current?.morphTo(Check); // animates
-ref.current?.set(X);         // jumps without animating
-```
-
-The DOM-free core beyond the browser: the dom driver is reused verbatim as the engine (React Native has a global `requestAnimationFrame`, and `PathEl` is structural), so the whole platform difference is a shim that forwards the per-frame `d` write to `Path.setNativeProps` of react-native-svg — outside the React render, exactly like the web mutation. On the New Architecture that write is not the last word, because every Fabric commit rebuilds the native path from the props React declares: the binding therefore publishes the driver's live `d` on each render, and re-applies it in a layout effect when a frame landed in between, so an unrelated re-render (a color or selection change, at rest or mid-flight) can no longer restore the icon the component mounted with. Same surface as the React binding (`size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, plus the native `Svg` props: `testID`, touch handlers…), same accessibility defaults (`aria-hidden` unless you pass `label` → `role="img"` + `aria-label`). With `reducedMotion="user"`, the OS setting comes from `AccessibilityInfo` (best-effort: the query is async; a `reduceMotionChanged` subscription keeps it exact from then on). Requires Metro with package `exports` resolution — default since React Native 0.79; on older versions enable `unstable_enablePackageExports`.
-
-### Astro — same three modes, zero framework runtime
+The server renders the SVG; in the browser it upgrades to `<morph-icon>`, with no framework runtime.
 
 ```astro
 ---
 import MorphIcon from "morphicons/astro";
-import { Menu } from "lucide"; // data, not components
+import { Menu } from "lucide";
 ---
 
-<MorphIcon icon={Menu} label="Menu" id="menu-icon" />
+<MorphIcon icon={Menu} id="menu-icon" />
 
 <script>
   import { X } from "lucide";
   import type { MorphIconElement } from "morphicons/element";
-  // Post-load control happens ON the element (it upgrades to <morph-icon>):
-  const el = document.querySelector<MorphIconElement>("#menu-icon")!;
-  el.morphTo(X);             // 3. imperative: morphTo / set, like a ref
-  // el.icon = X;            // 1. uncontrolled: assigning the property animates
-  // el.from = Menu; el.to = X; el.progress = 0.5;  // 2. controlled: frozen seek
+  document.querySelector<MorphIconElement>("#menu-icon")!.morphTo(X);
 </script>
 ```
 
-The server emits the exact static SVG with the pure core (zero flash, zero layout shift, works with static output and any SSR adapter) and hydration is just custom-element upgrade: the shell defines `<morph-icon>` once per page and the element adopts the server markup verbatim — zero `d` writes during upgrade, pinned by instrumented tests. No framework runtime ships — the only client bytes are `morphicons/element`. A controlled pair of `d` strings survives upgrade as attributes, so assigning `progress` from a script scrubs the server-frozen pair; `IconNode` pairs are server-only (attributes can't carry them) — control those by assigning the element's properties. Same presentation props as every binding (`size`, `strokeWidth`, `absoluteStrokeWidth`, `color`, `label`); rest attrs (`id`, `class`, `data-*`…) land on the `<morph-icon>` element, because grabbing it from a client script is the interaction model here. React/Vue/Svelte islands keep working for icons that live inside one — this entry is for the pages that don't need an island at all.
-
-### Web component — `<morph-icon>` anywhere HTML reaches
-
-The Astro shell is a thin SSR layer over `morphicons/element`, which stands on its own in plain HTML, HTMX, Rails, or any server-rendered stack:
+Anywhere else:
 
 ```html
 <script type="module">
   import { defineMorphIcon } from "morphicons/element";
-  defineMorphIcon(); // idempotent; custom tag: defineMorphIcon("my-icon")
+  defineMorphIcon();
 </script>
 
-<!-- attributes take d strings; properties take the full IconInput -->
 <morph-icon icon="M4 6h16M4 12h16M4 18h16" label="Menu"></morph-icon>
 ```
 
-The element is the fifth binding, not a second implementation: it wires attributes and properties to the same shared controller, passes the same mirrored mount suite, and exposes the same three modes — `icon` (uncontrolled), `from`/`to`/`progress` (controlled), `morphTo`/`set` methods (imperative, the element IS the handle). Attributes carry strings (`d` paths, preset names); properties accept everything (`IconNode`s, custom springs). If the element already contains a server-rendered `<svg><path>`, it adopts it verbatim and treats its `d` as the at-rest icon — SSR bytes are never rewritten at rest.
+Attributes take `d` strings; the `icon`, `from` and `to` properties take any icon, `progress` a number. The element has `morphTo()` and `set()`.
 
-### Lifecycle contract (all five bindings)
-
-The five components share one contract, pinned by mirrored client-mount tests:
-
-- **Lazy driver.** Mounting without any icon is fine — SSR emits `<path d="">` and the driver is born with the FIRST icon that shows up, whether a late `icon` prop (data that loads async), a late `from`/`to` pair, or an imperative `set`/`morphTo`. The first icon paints without animating; `morphTo` before the driver exists behaves as `set` (there is nothing to fly from).
-- **Controlled wins.** While `from` AND `to` are both present, the pair owns the path: `icon` changes are ignored, no spring fires. Drop the pair and the current `icon` takes over (animated). Mixing the modes is not an error — the precedence is just explicit.
-- **Clean re-entry.** Any exit from controlled mode (an imperative call or an icon takeover) invalidates the frozen pair, so returning to the same `from`/`to` re-bases on `from` and renders exactly like a clean mount at that `progress`.
-
-### Reduced motion (all five bindings)
-
-Icon morphs are small, short, communicative micro-transitions: the kind of motion the reduce-motion guidance considers generally acceptable, unlike parallax or full-screen movement. Auto-degrading them made the library look broken to every user with the OS setting on, so since 1.4.2 they play by default and the policy is an explicit prop (the same default Motion, formerly Framer Motion, ships):
-
-```tsx
-<MorphIcon icon={open ? X : Menu} reducedMotion="user" />
-```
-
-- `"never"` (default): morphs always animate; the OS setting is ignored.
-- `"user"`: while the OS reduce-motion setting is on, every `morphTo` degrades to an instant swap (the pre-1.4.2 behavior). The web bindings read `prefers-reduced-motion`; React Native reads `AccessibilityInfo`, and only touches the accessibility bridge when some instance opts in.
-- `"always"`: every `morphTo` jumps without animating (tests, screenshots).
-
-The prop is live: changing it governs the next morph. The vanilla driver takes the same policy as an option, `createMorph(el, icon, { reducedMotion: "user" })`, and exposes it as a mutable `morph.reducedMotion`. Apps that must strictly follow the user's system preference should pass `reducedMotion="user"` across the board.
-
-### Vanilla (no React)
+### Vanilla
 
 ```ts
 import { createMorph } from "morphicons/dom";
 
-const m = createMorph(pathEl, Menu); // pathEl: any object with setAttribute
-m.morphTo(X, "snappy");              // preset or { stiffness, damping }
-m.set(Check);                        // jump without animating (canonical d)
-m.seek(X, 0.4);                      // morph frozen at t — scrubbing, gestures
-m.progress = 0.4;                    // sugar: seek on the active target
-m.reducedMotion = "user";            // live policy: "never" (default) | "user" | "always"
+const m = createMorph(pathEl, Menu); // pathEl: an SVG <path>
+m.morphTo(X, "snappy");              // animates
+m.set(Check);                        // jumps
+m.seek(X, 0.4);                      // frozen at 40 %
 m.destroy();
 ```
 
-Truly interruptible: a `morphTo` mid-flight re-plans from the current intermediate shape while preserving the spring's velocity — click spam never jumps. A single global `requestAnimationFrame` drives all instances.
+## Fill icons
 
-### Pure core (no DOM)
+Stroke icons morph along their lines. When either icon is filled (Material Symbols, Heroicons solid, Phosphor fill…), both are turned into filled shapes and morph shape to shape. There is nothing to configure.
 
-```ts
-import { resampleIcon, buildPlan, interpPolar, allocOutputs, serialize } from "morphicons";
-
-const plan = buildPlan(resampleIcon(Menu), resampleIcon(X)); // cacheable
-const out = allocOutputs(plan);
-interpPolar(plan, 0.5, out);                                 // t ∈ [0, 1]
-const d = serialize(out, plan.items.map(it => it.closed));   // `d` attribute
-```
-
-Accepts `IconNode` (Lucide's data format, structurally typed — Lucide is neither a dependency nor a peer) or a raw `d` attribute. Tabler, Heroicons, Iconoir and custom paths work the same.
-
-## Format adapters — `morphicons/adapters`
-
-The core has exactly two structural contracts: `IconInput` on the way in (an `IconNode` or a `d` string) and `PathEl` on the way out (anything with `setAttribute` — the same contract that lets the React Native binding drive `setNativeProps`). A **format adapter** converts a foreign icon representation into one of those two contracts. All of them live in one opt-in entry, so the unit of payment is the import: core, driver and bindings never grow for a capability you didn't ask for, and inside the entry each adapter is an independent module — a named import tree-shakes to just that adapter, pinned by per-export size gates in CI. Adapters are per *format*, never per vendor: there is no `/iconify` and never will be.
-
-### `svgToIcon` — SVG markup in
-
-For icons that exist as markup rather than data: an Iconify body from `@iconify-json/*` (what UnoCSS `presetIcons` and the Tailwind icon plugins consume), a full `<svg>` copied from a website, a `<path>` from the shadcn registry. One call turns it into an `IconInput` any entry accepts:
+That code (~5.4 KB gzip) is a separate chunk, fetched the first time a filled icon shows up; apps that only use stroke icons never download it. Until it arrives, a filled icon renders in a close approximation, and a morph waits at most 100 ms before falling back to a simple shrink-and-grow transition. To take the network out of the picture:
 
 ```ts
-import { svgToIcon } from "morphicons/adapters";
+import { preloadRegion, setRegionLoader } from "morphicons/dom";
+import * as region from "morphicons/region";
 
-// Parse ONCE, at module scope — reuse the reference so the plan cache holds.
-const MENU = svgToIcon(menuBody); // '<path stroke="currentColor" d="M4 5h16…"/>'
-const X = svgToIcon(xBody);       // works in createMorph and all four bindings
+setRegionLoader(async () => region); // bundle it: no extra request
+// or call preloadRegion() early (on idle, on hover) to fetch it ahead of time
 ```
 
-Everything else happens under the hood: non-rendered containers (`<defs>`, `<mask>`, `<clipPath>`, `<symbol>`) are stripped, the morphability scan rejects what can't honestly morph (a fill-drawn icon with no stroke — Material Symbols style — a `transform`, an element outside the seven stroke primitives) with a clear error at parse time, and when the markup carries a `viewBox` the geometry is re-gridded onto 24 via [`fitIcon`](#icon-library-compatibility) automatically, so off-grid collections just work.
+Known limit: on a random sample of filled pairs, about 4 % briefly paint a little outside the shape mid-flight ([report](bench/region-report.md)).
 
-### `maskTarget` — CSS-mask elements out
-
-For apps that render icons as CSS masks — UnoCSS `presetIcons`, `@iconify/tailwind`, `@egoist/tailwindcss-icons` (`i-lucide-*`, `icon-[lucide-x]`): the icon is a `mask-image` data URI on a `<span>`/`<div>`, with **no `<path>` in the DOM** to write to. `maskTarget` creates a hidden pair of referenced `<svg><mask><path>` buffers once, points the element's mask at them, and hands the driver a `PathEl` whose `d` writes land on that real geometry — so the element morphs in place, keeping your `size-*`/`text-*` classes. Two engine traps shaped this mechanism (see `docs/adr/0002`): a data-URI mask swapped per frame never decodes in time in Chromium (blank flight), and WebKit doesn't repaint when a referenced mask's *content* mutates (frozen flight) — hence the pair: each write flips `mask-image` between the two buffers, which forces re-resolution everywhere.
+## Format adapters
 
 ```ts
-import { maskTarget } from "morphicons/adapters";
-import { createMorph } from "morphicons/dom";
-
-const target = maskTarget(spanEl);     // spanEl: class="size-5 text-current"
-const m = createMorph(target, MENU);
-m.morphTo(X, "snappy");                // full Morph handle: set/seek/progress/destroy
-// on unmount: m.destroy(); target.dispose();
+import { canvasTarget, maskTarget, svgToIcon } from "morphicons/adapters";
 ```
 
-It *is* `createMorph` — only the write target differs — so springs, reduced motion and mid-flight interruption behave identically. On setup it sets `background-color: currentColor`, so a bare `<span>` works with no icon class (`{ paint: false }` keeps an existing `bg-*`; `strokeWidth` and `viewBox` are options). The returned target adds `dispose()` — call it after `morph.destroy()` when the element unmounts, so the hidden mask nodes go with it.
+- **`svgToIcon(markup)`** turns SVG markup (an Iconify body, a full `<svg>`, a `<path>`) into an icon: transforms baked, re-gridded to 24 from its `viewBox`. Call it once at module scope.
+- **`maskTarget(el)`** morphs CSS-mask icons in place (UnoCSS `presetIcons`, Tailwind icon plugins): `createMorph(maskTarget(span), icon)`. Call `target.dispose()` after `morph.destroy()`. The browser repaints the mask every frame: fine for toggles, inline SVG stays leaner for icon-heavy views.
+- **`canvasTarget(canvas | ctx)`** draws the morph into a canvas or 2D context: maps, charts, WebGL textures, workers. `onWrite` tells a host with its own render loop when to repaint.
 
-**Cost.** A live inline `<path>` gets the cheapest possible write; a mask element additionally makes the browser re-rasterize the mask and repaint the masked box every frame (main thread, no compositor-only path). Great for toggles and short lists (menu↔close, chevrons, play↔pause); for icon-heavy views, the inline-SVG bindings remain the leanest option — same styling, one less indirection.
-
-### `canvasTarget` — 2D canvas out
-
-For surfaces where the DOM never enters: **the icon stops being a document node and becomes pixels you own.** The platform does the heavy lifting — `Path2D` parses `d` strings natively — so every frame is one `stroke(new Path2D(d))` on whatever you hand it: an `HTMLCanvasElement`, an `OffscreenCanvas`, or a bare 2D context (what a worker, or a host that already owns the context, has in hand).
-
-```ts
-import { canvasTarget } from "morphicons/adapters";
-import { createMorph } from "morphicons/dom";
-
-const m = createMorph(canvasTarget(canvas), MENU);
-m.morphTo(X, "snappy");
-// the canvas is a live texture: gl.texImage2D(gl.TEXTURE_2D, ..., canvas)
-```
-
-Once the icon is pixels, everything the SVG model can't reach opens up:
-
-- **Canvas-first apps** with no DOM to put an icon in: Konva, Fabric.js, PixiJS, games, chart draws, tldraw-style editors.
-- **`OffscreenCanvas` + workers**: the whole morph runs off the main thread.
-- **Native export**: `toBlob()` for PNG sprites, `captureStream()` + MediaRecorder for the morph as a video asset.
-- **An animated favicon**: draw, `toDataURL()`, swap the `<link>`.
-- **HUDs over video or fullscreen surfaces**: same buffer as the player or the game, no DOM layer on top.
-- **WebGL textures**: the canvas is a ready `texImage2D` source — shader effects over live icons are one branch of this list, not its headline.
-- Down the road, the same gesture (`PathEl` → `Path2D`) is `PathEl` → `SkPath`: a react-native-skia / CanvasKit target would consume the identical contract.
-
-It *is* `createMorph` — springs, mid-flight interruption and reduced motion behave identically. The target maps the icon grid onto whatever backing store it finds, per write: min-side scale, centered (the canvas equivalent of `preserveAspectRatio="xMidYMid meet"`), so non-square canvases letterbox and devicePixelRatio is simply whatever you sized the backing store to. Color cascades: the `color` option wins; without it, a CSS-styled canvas contributes its computed `color` (the moral equivalent of `currentColor`, which canvas lacks — read lazily, once); where CSS can't reach (OffscreenCanvas, workers) the context's current `strokeStyle` stands, which is the idiomatic canvas contract. `strokeWidth` and `viewBox` mirror the other adapters; `clear: false` skips the per-frame clear for manual compositing and trails.
-
-**Hosts with their own render loop.** Don't hand a Konva/Chart.js/game context to a morph — the driver writes on its own rAF and the two clocks fight over the frame. Give the icon a small dedicated canvas and composite it into the scene (`drawImage`, `Konva.Image`, a texture upload), with `onWrite` as the dirty signal:
-
-```ts
-const icon = new OffscreenCanvas(64, 64);
-const target = canvasTarget(icon, {
-  color: "#e8eaed",                      // CSS can't reach an OffscreenCanvas
-  onWrite: () => { textureDirty = true } // re-upload / blit on the host's next frame
-});
-const m = createMorph(target, PLAY);
-```
-
-**Cost.** The cheapest target of the three: no layout, no DOM paint — one native path parse and one stroke rasterization per frame, on a canvas that is typically small. 0.48 KB gzip standalone, the lightest adapter yet.
+Each adapter tree-shakes on its own. `maskTarget` and `canvasTarget` draw strokes only.
 
 ## Icon library compatibility
 
-morphicons has no per-library adapters — any icon set that meets these requirements works out of the box:
+Any set drawn on a 24×24 grid works as is. For other grids, convert once with `fitIcon`:
 
-1. **Stroke-drawn icons.** The geometry must be the stroked centerline (`fill="none"`, color via `stroke`). The whole pipeline — resampling, correspondence, in-flight polylines — assumes strokes; filled or outlined-fill glyphs (Material Symbols, Bootstrap Icons, Remix Icon, Phosphor, Heroicons *solid*) parse fine but won't read correctly in transit.
-2. **Geometry available as data.** Either a raw `d` attribute per icon, or a `[tag, attrs][]` node list (Lucide's IconNode shape) using only `path`, `line`, `circle`, `ellipse`, `rect`, `polyline`, `polygon`. No `<g>` wrappers and no `transform` attributes — coordinates must be literal. Any other tag throws a clear error.
-3. **A shared coordinate space per pair.** Both endpoints of a morph must live on the same grid. Lucide, Tabler, Heroicons and Iconoir all draw on 24×24 — that's why cross-library morphs just work. For a pack on another canvas (Heroicons *solid* on 20, Carbon on 32, Teenyicons on 15), re-grid it once with `fitIcon`:
+```ts
+import { fitIcon } from "morphicons";
 
-   ```ts
-   import { fitIcon } from "morphicons";
-
-   const search = fitIcon(carbonSearch, 32);   // 32×32 → the 24 grid
-   const bell   = fitIcon(teenySmallBell, 15); // also "0 0 15 15" or [0, 0, 15, 15]
-   ```
-
-   It returns a plain `d`, so it goes anywhere an icon is accepted. Call it at module scope, not per render. Skipping it doesn't throw — Procrustes is similarity-invariant, so the grid mismatch never reads as false rotation; it lands in σ as an unwanted zoom, and the target draws outside the canvas. The React, Vue and Svelte bindings default to `viewBox="0 0 24 24"`, overridable via props.
-4. **Uniform stroke.** Cosmetic rather than structural: a consistent stroke width and round caps/joins make in-flight shapes look native. These live on the `<svg>`, not in morphicons.
-
-Beyond the libraries in the playground, sets known to qualify on the 24×24 grid — no fitting needed: **Heroicons** (outline style), **Iconoir** (1.5px stroke), **Akar Icons**, **Untitled UI** and **Hugeicons** (stroke style). Off-grid packs work through `fitIcon`: **Teenyicons** (15×15), **Carbon** (32×32), **Heroicons solid** (20×20).
-
-This also covers the [shadcn registry](https://www.shadcn.io/icons), which re-publishes 200+ icon libraries as React components with an inline `<path d>` — pass that `d` straight in, adding `fitIcon` when the pack's `viewBox` isn't 24.
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────┐
-│  bindings   react · vue · svelte · rn      │  thin: ref + createMorph
-│             · element (+ astro SSR shell)   │
-├─────────────────────────────────────────────┤
-│  drivers    dom (setAttribute + rAF)        │  singleton scheduler
-├─────────────────────────────────────────────┤
-│  core       parse → normalize → resample    │  pure functions,
-│             → match → align → plan          │  NO DOM, produce
-│             → interpolate → serialize       │  `d` strings and numbers
-│             + spring                        │
-└─────────────────────────────────────────────┘
+const search = fitIcon(carbonSearch, 32); // 32×32 → 24×24, returns a d string
 ```
 
-The hard rule: **the core never touches the DOM**. Pure functions consume icon data and produce `d` strings. Direct consequence: the React Native binding over `react-native-svg` is just another adapter, not a rewrite — it reuses the dom driver verbatim through a `setNativeProps` shim. One package with subpath exports (`.` core, `./dom`, `./react`, `./react-native`, `./vue`, `./svelte`, `./element`, `./astro`), ESM only, `sideEffects: false`.
+An `IconNode` may use `path`, `line`, `circle`, `ellipse`, `rect`, `polyline` and `polygon`, with no `<g>` or `transform`. For markup that has them, use `svgToIcon`.
 
-The plan is the central artifact:
+## How it works
 
-```
-icon A ─┐
-        ├→ normalize → resample → match → align → PLAN ─→ interpolate(t) → serialize → d
-icon B ─┘                                           ↑
-                                        cacheable, serializable
-```
+Every icon is resampled into evenly spaced points. For each pair of pieces, morphicons solves the rotation, scale and translation that best map one onto the other (2D Procrustes, in closed form), then interpolates rotation, scale and shape separately. So two icons that are the same shape rotated morph as a pure rotation: arrow-right turns 90° into arrow-down without anyone declaring it.
 
-`plan()` accepts any list of sampled subpaths — not just canonical icons — which is what makes interruptions free: the currently rendered buffers are a valid morph source.
-
-## How the math works
-
-### 1. Normalization — everything to cubic Béziers
-
-Every SVG primitive is reduced to cubic segments:
-
-- **Line** → cubic with collinear controls: `C₁ = P₀ + ⅓(P₃−P₀)`, `C₂ = P₀ + ⅔(P₃−P₀)`.
-- **Quadratic** → exact degree elevation: `C₁ = Q₀ + ⅔(Q₁−Q₀)`, `C₂ = Q₂ + ⅔(Q₁−Q₂)`.
-- **Circle** → 4 cubics with offset `k = r·(4/3)·tan(π/8) ≈ 0.5523·r`.
-- **Arc `A`** → center parametrization (SVG spec, appendix F.6), sliced into arcs ≤ 90°, each slice to a cubic with `α = (4/3)·tan(Δθ/4)`.
-- **rect/polyline/polygon** → lines (rounded rects: lines + quarter ellipses).
-
-The `d` parser handles absolute/relative commands, H/V/S/T shorthands, packed arc flags and scientific notation. Result: icon = list of subpaths; subpath = chain of cubics + closed/open flag.
-
-### 2. Resampling — arc length with anchored corners
-
-Instead of fighting Bézier structures of different cardinality, every subpath is sampled at **N points equidistant by arc length** (N = 64). Every subpath becomes a `Float64Array(2N)` and the structural problem disappears: correspondence is index to index.
-
-The arc length of a cubic has no closed form; `|B′(t)|` is integrated with 8-point Gauss-Legendre quadrature per segment.
-
-The refinement that drives quality: **corner detection** (tangent discontinuity above an angular threshold) with corners anchored as exact sample points. Remaining points are apportioned by arc length between corners — integer apportionment by largest remainder, minimum 1 interval per run, summing exactly to N−1. Effects:
-
-- At rest the shape is **exact** (a check's vertex is a sample, not an approximation).
-- In transit, source corners flatten smoothly and target corners sharpen — the desired behavior. Without anchoring, a morphing check visibly rounds its corners.
-
-Closed paths anchor **only corners**, not the arbitrary `M` start point — sampling is intrinsic to the shape, so two congruent loops with different start points produce the same sample set (modulo index rotation, resolved by the circular correspondence below).
-
-### 3. Correspondence
-
-Three subproblems:
-
-- **Orientation.** Both traversal directions of B are tried and scored (see the tie-break below). A hamburger line folding to the correct diagonal depends on this.
-- **Start point (closed paths).** A closed contour has a circular degree of freedom: which index is "first". The N circular offsets × 2 directions are tried and the best post-alignment score wins. O(N²) brute force with N = 64 is ~4K operations per pair — negligible.
-- **Subpath matching.** With p subpaths in A and q in B, pairing cost is `dist(centroids) + 0.35·|ΔL|` (arc lengths). Equal counts use the minimum-cost permutation (exhaustive with pruning up to 8 subpaths, greedy above); unequal counts use a **surjective** assignment from the large side to the small one, so no subpath ever appears or disappears out of nowhere. Leftovers are **not collapsed to a point**: the nearest subpath is **duplicated** in place and the copies separate in flight — it reads as cell division, far more natural than growing from nothing. At rest, overlapping duplicates with the same solid stroke are invisible, and the canonical snap on settle resets the count.
-
-### 4. Alignment — 2D Procrustes
-
-Before interpolating, the **optimal similarity** (rotation θ, scale σ, translation) mapping A onto B is computed by minimizing `Σ|σ·R(θ)·(aᵢ−c_A) − (bᵢ−c_B)|²`. In 2D it has a closed form, no SVD:
-
-```
-S_xx = Σ aₓbₓ    S_xy = Σ aₓbᵧ    (centered clouds)
-S_yx = Σ aᵧbₓ    S_yy = Σ aᵧbᵧ
-
-θ* = atan2(S_xy − S_yx,  S_xx + S_yy)
-σ* = [cos θ*·(S_xx+S_yy) + sin θ*·(S_xy−S_yx)] / Σ‖aᵢ‖²
-```
-
-The normalized RMS **residual** after alignment (`res = √(Σ|σRa−b|² / Σ‖b‖²)`) is the shape metric: ≈ 0 means A and B are the same shape rotated/scaled. This turns rotation groups into an **emergent property**: arrow-right → arrow-down gives residual ~0 with θ = 90° and the system chooses pure rotation on its own.
-
-Procrustes runs **per subpath** (each piece rotates around its own centroid, which translates independently) — this gives local, organic motion: a hamburger *folds* instead of spinning as a block. A **global hybrid** pass then runs Procrustes over the concatenated clouds: if the global residual is ≈ 0 (< 5e-3) the whole icon is congruent and every subpath shares the same (θ, σ), so e.g. both subpaths of an arrow spin the same way.
-
-#### Minimal-rotation tie-break
-
-For shapes symmetric under inversion (a straight line), both traversal orientations give residual 0 — indistinguishable to Procrustes — but produce different rotations. Naive tie-breaking can pick θ = 135° when the inverted orientation gives θ = −45° with the same end result. Each orientation is scored with:
-
-```
-score = res + λ·|θ|/π      (λ = 0.05)
-```
-
-Deformation is minimized first and, at comparable residuals, the shortest rotation wins. λ is small enough that a notably worse shape never wins just by rotating less. This is the kind of detail the math doesn't see but the eye does.
-
-### 5. Polar interpolation
-
-Raw coordinate lerp **collapses rotations**: points take the chord, the shape shrinks and shears in transit. The fix: decompose the motion into similarity + residual and interpolate each part in its natural space.
-
-Let `aᶜᵢ = aᵢ − c_A` and `b̃ᵢ = R(−θ*)·(bᵢ − c_B)/σ*` (B brought into A's frame). Then:
-
-```
-P(t) = c(t) + σ*ᵗ · R(t·θ*) · [(1−t)·aᶜᵢ + t·b̃ᵢ]
-
-  c(t)  = lerp(c_A, c_B, t)        linear translation (block transport under the global hybrid — below)
-  t·θ*  = linear angle             (θ* is already in (−π, π], short path)
-  σ*ᵗ   = exp(t·ln σ*)             log-linear scale (geodesic in ℝ⁺)
-```
-
-Exact at both endpoints (max error ~3.6e-15 in tests). Properties:
-
-- If B is A rotated (residual 0), the bracket is constant and the motion is **pure rotation**.
-- If there is no rotation, it's a clean coordinate morph.
-- Mixed cases do both simultaneously and continuously.
-- With spring overshoot (t > 1) the formula **extrapolates** naturally: rotation and scale overshoot slightly and come back — free juice.
-
-**Block transport (global hybrid).** When the whole icon is congruent (§4), lerping each subpath centroid reintroduces the chord disease one level up: every part spins with the shared θ*, but an off-center part travels the chord — inside the arc — and drifts toward the center mid-flight. An arrow's head sagged ~1 px toward its shaft at t = 0.5 (`r·(1 − cos(θ/2))` with r = 3.5, θ = 90°) while both parts rotated perfectly. Under the hybrid, each centroid rides the shared similarity around the global centroid `g_A` instead:
-
-```
-c_k(t) = c_{A,k} + t·d_k + (σ*ᵗ·R(t·θ*) − I)·(c_{A,k} − g_A)
-```
-
-`d_k` is fixed once so that `c_k(1) = c_{B,k}` exactly (it absorbs the tiny global residual). Every point of every subpath then moves under ONE similarity per frame: congruent icons are rigid through the whole flight, not only at the endpoints. With θ* = 0, or centroids sitting on `g_A`, or no hybrid at all, the formula degrades continuously to the plain lerp — no thresholds, no special cases.
-
-### 6. Serialization and canonical snap
-
-In flight, each subpath is emitted as `M x y L x y …` (+ `Z` if the pair is closed↔closed; closed→open flies open, the loop opening at the cut chosen by the circular correspondence) with 2 decimals — invisible at 24px, and the frame's only allocation. On settle, the driver **snaps to the canonical `d`** of the target icon: exact fidelity at rest (real curves, not polylines), subpath count reset after duplications, and the DOM ends up identical to a static icon's. The jump is < 0.02px — imperceptible. The canonical `d` itself is emitted with 4 decimals, and that is a correctness choice, not a size one: arc→cubic conversion goes through trig whose last ulp differs across JS engines, and SSR hydration compares the server's bytes against the browser's — quantized emission keeps them identical, where full precision leaked each engine's ulp into the markup (a Next hydration mismatch on icons with non-cardinal arcs).
-
-### 7. The spring
-
-Damped harmonic oscillator over progress `x: 0 → 1`:
-
-```
-ẍ = k·(1 − x) − c·ẋ
-```
-
-Integrated with **semi-implicit Euler** at h = 1/240 s substeps (stable up to ω·h ≈ 2; with k = 420, ω ≈ 20.5 — ample margin). ~25 lines, no animation library needed.
-
-| preset | k | c | ζ = c/(2√k) | character |
-|--------|-----|-----|------|-----------|
-| smooth | 170 | 26 | 1.00 | critically damped, no overshoot |
-| snappy | 420 | 30 | 0.73 | fast, subtle overshoot |
-| bouncy | 300 | 14 | 0.40 | playful |
-
-**Interruptions**: when a `morphTo` arrives mid-flight, the plan is rebuilt from the current intermediate shape (the rendered buffers are already N points per subpath — they serve directly as source), `x` resets to 0 and **velocity is preserved** (clamped to ±14). Perceived motion is continuous; tap spam feels alive, never jumps. The spring settles and the rAF stops when `|1−x| < 0.001 ∧ |v| < 0.02`.
-
-## Performance
-
-- `plan(A, B)` complete (resample + match + Procrustes × orientations): **sub-millisecond** with N = 64 — measured 0.01 ms (open paths) to 0.06 ms (closed, with circular search); 0.42 ms for a pathological 12-loops case.
-- **Zero numeric allocation per frame**: interpolators write into the plan's preallocated `Float64Array`s. Only the `d` string is allocated.
-- **Caches by reference**: `normalize(icon)` in a WeakMap keyed by the IconNode (Lucide imports are stable references → no string keys, GC-friendly). `plan(A, B)` in a nested WeakMap; plans from interruptions are never cached.
-- **One global rAF** (singleton scheduler): active instances are iterated, settled ones unregister. A hundred icons morphing at once = one loop.
+The math, with formulas: [docs/how-it-works.md](docs/how-it-works.md). Design decisions: [docs/adr](docs/adr).
 
 ## Size
 
-CI budget (size-limit, gzip) as an anti-regression tripwire — gates carry ~10% headroom over what's measured; if a real capability needs more, the number is renegotiated, but growing unnoticed is not accepted:
+gzip, enforced in CI:
 
-| entry | measured | gate |
-|---|---|---|
-| `morphicons` (core) | 6.67 KB | 7 KB |
-| `morphicons/region` (normalizer standalone — the lazy chunk, ~5.4 KB incremental) | 11.16 KB | 11.2 KB |
-| `morphicons/dom` (core + driver) | 9.16 KB | 9.2 KB |
-| `morphicons/adapters` (aggregate — grows by design) | 5.11 KB | 5.7 KB |
-| `adapters` › `{ svgToIcon }` alone | 4.17 KB | 4.7 KB |
-| `adapters` › `{ maskTarget }` alone | 0.70 KB | 0.8 KB |
-| `adapters` › `{ canvasTarget }` alone | 0.48 KB | 0.55 KB |
-| `morphicons/react` (all, react external) | 10.05 KB | 10.1 KB |
-| `morphicons/react-native` (all, react/rn/rnsvg external; Metro inlines the region chunk) | 15.73 KB | 15.8 KB |
-| `morphicons/vue` (all, vue external) | 10.07 KB | 10.1 KB |
-| `morphicons/svelte` TS half (all, svelte external) | 9.70 KB | 9.8 KB |
-| `MorphIcon.svelte` (ships as source, consumer-compiled) | 1.29 KB | 1.4 KB |
-| `morphicons/element` (all, `<morph-icon>`) | 10.92 KB | 11 KB |
-| `MorphIcon.astro` (ships as source, consumer-compiled) | 1.61 KB | 1.75 KB |
-
-The adapters entry carries **two kinds of gate**: the aggregate (allowed to grow as adapters are added) and one per named export, which pins each adapter as independently tree-shakeable — if two adapters ever couple, the per-export gate trips in CI. Standalone, `{ svgToIcon }` measures 4.17 KB because auto-fit drags the core's lowering machinery; an app that already imports the core shares that chunk and pays ~1.4 KB incremental (inherited paint for fill-drawn icons, and transforms baked instead of rejected: 0.2 KB of it).
-
-The dom and binding numbers are **static** bytes. The region normalizer (stroke ↔ fill, fill ↔ fill) is a separate chunk loaded with `import()` the first time a morph involves a fill icon — stroke-only apps never download it; its incremental cost over an app that already has the driver is ~5.4 KB gzip. What stays static is only what must work before the chunk exists: +2.0 KB on dom over a stroke-only driver (7.12 KB). Bundlers that don't split (IIFE/UMD, Metro) inline the chunk. See [ADR 0004](docs/adr/0004-regions-are-canon-normalizer-is-lazy.md). That static part:
-
-- **Rest without the chunk.** A fill icon renders filled from the server markup on, in the closest look one `<path>` can give it: stroke when stroke-only elements enclose more than the filled ones (a line icon with filled dots), else fill + stroke if any element is stroked, else fill; always nonzero, with each evenodd element's subpaths wound so its holes stay holes; translucent duotone layers left out. It upgrades to its exact region when the chunk lands (2,010 Iconify fill icons: 14 rest visibly off before that, IoU < 0.99).
-- **Never stuck on the network.** A morph waits at most 100 ms for the chunk. Past that, or on a failed load, it flies a fallback (the old shape shrinks into its centre, the new one grows out of its own), and a load already older than the budget isn't waited for again.
-- **Off the critical path.** A fill icon prefetches the chunk on idle at mount, never under Save-Data (the first morph that needs it loads it then).
-- **Retry after a failure.** The next morph that needs the chunk retries: a plain `import()` first (Safari ≤ 26.1, Firefox 155+ and Chrome 156+ fetch again). Chromium ≤ 155 and Safari 26.2–27 keep a failed `import()` failed for the page's life, so if that fails too the chunk re-runs as a module script under a fresh module-map key (`#…`: same URL for the server and its cache). Chromium and Firefox name the URL in the error; Safari doesn't, so it is read off the loader's source (the bundler's chunk path) and resolved against the driver's own URL. A CSP or Trusted Types policy that blocks module scripts blocks that step; `setRegionLoader(async () => region)` with a static `import * as region from "morphicons/region"` takes the network out entirely.
-
-## Playground
-
-```bash
-bun run play   # → http://localhost:3000
-```
-
-38 real icons from Lucide (IconNode imported from the package), Feather and Tabler; per-pair readout of the detected similarity (θ, σ, residual), polar/linear modes for comparison, spring presets and a t scrubber. Feather/Tabler data is extracted from the npm packages with `bun playground/extract-vendor-icons.mjs`.
+| | KB |
+|---|---|
+| `morphicons` (core) | 6.7 |
+| `morphicons/dom` | 9.2 |
+| `morphicons/react` · `vue` · `svelte` | 10.1 · 10.1 · 11.0 |
+| `morphicons/element` | 10.9 |
+| `morphicons/react-native` (fill chunk included) | 15.7 |
+| fill chunk, on demand | +5.4 |
+| `svgToIcon` · `maskTarget` · `canvasTarget` | 4.2 · 0.7 · 0.5 |
 
 ## Development
 
 ```bash
-bun test          # 156 tests / ~13,700 asserts
-bun run typecheck # strict ×6: core+dom without lib DOM, playground, react, react-native, vue, svelte
-bun run format    # biome
-bun run build     # tsdown → dist/ + scripts/build-svelte.ts (svelte entry)
-bun run size      # size gates
+bun install
+bun test
+bun run typecheck
+bun run lint
+bun run build && bun run size
+bun run play   # playground → http://localhost:3000
 ```
 
-Icons shown in the playground belong to their authors: [Lucide](https://lucide.dev) (ISC), [Feather](https://feathericons.com) (MIT), [Tabler](https://tabler.io/icons) (MIT).
+Playground icons belong to their authors: [Lucide](https://lucide.dev) (ISC), [Feather](https://feathericons.com) (MIT), [Tabler](https://tabler.io/icons) (MIT).
 
 ---
 
