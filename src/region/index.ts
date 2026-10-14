@@ -254,7 +254,9 @@ function trace(F: Float32Array, g: Grid): Float64Array[] {
     const j = (node - i) / nx;
     const other = key & 1 ? node + nx : node + 1;
     const fa = F[node];
-    const t = fa / (fa - F[other]);
+    // Kept off the nodes: a shape edge through a node (integer coordinates
+    // land on the grid) would put crossings of two contours on one point.
+    const t = Math.min(Math.max(fa / (fa - F[other]), 1e-5), 1 - 1e-5);
     pt.set(
       key,
       key & 1 ? [x0 + i * h, y0 + (j + t) * h] : [x0 + (i + t) * h, y0 + j * h],
@@ -501,19 +503,10 @@ export function regionContours(
     ny: Math.ceil((maxY - minY + 2 * pad) / h) + 1,
   };
   const loops = trace(field(parts, g), g).filter((l) => Math.abs(area(l)) > 0.01);
-  // Nesting by a vote of three spread vertices: contours never cross but
-  // may touch, and a touching vertex is on both (a coin flip alone).
-  const within = (o: Float64Array, l: Float64Array): boolean => {
-    let v = 0;
-    for (let k = 0; k < 3; k++) {
-      const i = 2 * Math.floor((k * l.length) / 6);
-      if (contains(o, l[i], l[i + 1])) v++;
-    }
-    return v > 1;
-  };
   return loops.map((l) => {
+    // Contours neither cross nor touch (see trace): any vertex nests.
     let depth = 0;
-    for (const o of loops) if (o !== l && within(o, l)) depth++;
+    for (const o of loops) if (o !== l && contains(o, l[0], l[1])) depth++;
     const hole = depth % 2 === 1;
     const oriented = area(l) > 0 === !hole ? l : reverse(l);
     return recoverCorners(simplify(oriented, h * 0.08), h);

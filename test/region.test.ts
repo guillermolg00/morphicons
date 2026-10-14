@@ -137,10 +137,11 @@ const inside = (x: number, y: number, p: Float64Array): boolean => {
 describe("normalizer (toRegion)", () => {
   test("construction independence: two overlapping rects ≡ one outline, exactly", () => {
     expect(toRegion(CROSS_RECTS)[0][1].d).toBe(toRegion(CROSS_OUTLINE)[0][1].d);
-    // corners are rebuilt: a 12-vertex cross with area 112
+    // corners are rebuilt: a 12-vertex cross with area 112 (edges on the
+    // grid sit a micro-unit inside, so contours never touch)
     const [c] = regionContours(CROSS_RECTS);
     expect(c.length / 2).toBe(12);
-    expect(signedArea(c)).toBeCloseTo(112, 6);
+    expect(signedArea(c)).toBeCloseTo(112, 3);
   });
 
   test("the morph between the two constructions does not move", () => {
@@ -193,6 +194,28 @@ describe("normalizer (toRegion)", () => {
     const cs = regionContours(lens);
     for (const [x, y] of GRID) expect(windingAt(cs, x, y)).toBeGreaterThanOrEqual(0);
     expect(windingAt(cs, 12.01, 13.01)).toBe(1); // the sparkle paints
+  });
+
+  test("pieces meeting on whole units never touch (MingCute projector-screen-line)", () => {
+    // integer edges land on grid nodes: two contours shared those points,
+    // and every vertex vote on them was a coin flip
+    const screen: IconNode = [
+      [
+        "path",
+        {
+          fill: "currentColor",
+          d: "M13 15a1 1 0 1 0-2 0zM6 6V5H5v1zm12 0h1V5h-1zm0 9v1h1v-1zM6 15H5v1h1zM4 3V2a1 1 0 0 0-1 1zm16 0h1a1 1 0 0 0-1-1zm0 3v1a1 1 0 0 0 1-1zM4 6H3a1 1 0 0 0 1 1zm0 8a1 1 0 1 0 0 2zm16 2a1 1 0 1 0 0-2zm-8-1h-1v3h2v-3zM6 6v1h12V5H6zm12 0h-1v9h2V6zm0 9v-1H6v2h12zM6 15h1V6H5v9zM4 3v1h16V2H4zm16 0h-1v3h2V3zm0 3V5H4v2h16zM4 6h1V3H3v3zm9.5 13.5h-1a.5.5 0 0 1-.5.5v2a2.5 2.5 0 0 0 2.5-2.5zM12 21v-1a.5.5 0 0 1-.5-.5h-2A2.5 2.5 0 0 0 12 22zm-1.5-1.5h1a.5.5 0 0 1 .5-.5v-2a2.5 2.5 0 0 0-2.5 2.5zM12 18v1a.5.5 0 0 1 .5.5h2A2.5 2.5 0 0 0 12 17zm-8-3v1h16v-2H4z",
+        },
+      ],
+    ];
+    const cs = regionContours(screen);
+    let bad = 0;
+    for (let y = 0.05; y < 24; y += 0.1)
+      for (let x = 0.07; x < 24; x += 0.1) {
+        const w = windingAt(cs, x, y);
+        if (w < 0 || w > 1) bad++;
+      }
+    expect(bad).toBe(0);
   });
 
   test("a mixed icon (filled shape + stroked mark) unions both", () => {
