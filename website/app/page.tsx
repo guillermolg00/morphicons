@@ -63,10 +63,9 @@ export default function Home() {
                   Closed-form math, no config.
                 </h2>
                 <p className="mt-5 max-w-[60ch] leading-relaxed text-body">
-                  morphicons finds the rotation, scale and translation that best map one
-                  icon onto the other (2D Procrustes, in closed form). Shapes that match
-                  under rotation rotate; the rest morph in the aligned frame. Filled icons
-                  morph as filled shapes, through a small chunk that loads on first use.
+                  morphicons solves the rotation, scale and translation that best map one
+                  icon onto the other, in closed form. Shapes that match under rotation
+                  simply rotate, and filled icons morph as filled shapes.
                 </p>
                 <p className="mt-4 max-w-[60ch] leading-relaxed text-body">
                   Icons are consumed as data, not components: a{" "}

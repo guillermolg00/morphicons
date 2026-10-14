@@ -19,18 +19,16 @@
   </a>
 </p>
 
-Morph any SVG icon into any other with spring physics. Lucide, Tabler, Heroicons, Material Symbols, Phosphor or your own paths, stroked or filled. Rotations are never declared by hand: they come out of the math. Zero runtime dependencies.
+Morph any SVG icon into any other, stroked or filled, with spring physics. Lucide, Tabler, Heroicons, Material Symbols, Phosphor or your own paths. Zero runtime dependencies.
 
 ```tsx
 import { MorphIcon } from "morphicons/react";
 import { Menu, X } from "lucide"; // icon data, not components
 
-<button onClick={() => setOpen(o => !o)} aria-expanded={open}>
-  <MorphIcon icon={open ? X : Menu} />
-</button>
+<MorphIcon icon={open ? X : Menu} />
 ```
 
-Change the prop and the icon morphs. No wrappers, keys or per-pair configuration.
+Change the prop and the icon morphs. Nothing to configure.
 
 ## Install
 
@@ -38,92 +36,52 @@ Change the prop and the icon morphs. No wrappers, keys or per-pair configuration
 npm install morphicons
 ```
 
-ESM only. Framework peers are optional, each needed only by its own entry: `react` ≥ 18, `vue` ≥ 3.3, `svelte` ≥ 5, `react-native` ≥ 0.71 with `react-native-svg` ≥ 14.
+Icons are **data**: an `IconNode` (Lucide's format) or a `d` string. For Lucide, import from `lucide`, not `lucide-react`.
 
-**Icons are data.** `MorphIcon` takes an `IconNode` (Lucide's data format) or a `d` string. For Lucide, import from `lucide`, not `lucide-react`: component packages can't be morphed. Both can live in the same app; keep their versions aligned.
-
-| entry | what it gives you |
+| entry | |
 |---|---|
-| `morphicons/react` | `<MorphIcon>` for React and Next.js |
-| `morphicons/vue` | `<MorphIcon>` for Vue 3 and Nuxt |
-| `morphicons/svelte` | `<MorphIcon>` for Svelte 5 and SvelteKit |
-| `morphicons/react-native` | `<MorphIcon>` over react-native-svg |
-| `morphicons/astro` | `<MorphIcon>` for Astro, no island needed |
-| `morphicons/element` | `<morph-icon>` custom element for plain HTML |
-| `morphicons/dom` | `createMorph()`, the vanilla driver |
+| `morphicons/react` · `vue` · `svelte` · `react-native` | `<MorphIcon>` (the framework peer is optional) |
+| `morphicons/astro` · `element` | Astro component · `<morph-icon>` for plain HTML |
+| `morphicons/dom` | `createMorph()`, no framework |
 | `morphicons/adapters` | `svgToIcon`, `maskTarget`, `canvasTarget` |
-| `morphicons` | the pure core: plans and paths, no DOM |
-| `morphicons/region` | the fill normalizer (loaded on demand, see [Fill icons](#fill-icons)) |
+| `morphicons` | the pure core, no DOM |
 
 ## Usage
 
-Every binding has the same three modes:
+Three modes, the same in every binding:
 
 ```tsx
-import { MorphIcon, type MorphHandle } from "morphicons/react";
-
-// 1. Uncontrolled: change the prop and it animates
-<MorphIcon icon={open ? X : Menu} />
-
-// 2. Controlled: you drive the progress (gestures, scroll)
-<MorphIcon from={Menu} to={X} progress={0.4} />
-
-// 3. Imperative
-const ref = useRef<MorphHandle>(null);
-<MorphIcon ref={ref} icon={Menu} />
-ref.current?.morphTo(Check); // animates
-ref.current?.set(X);         // jumps
+<MorphIcon icon={open ? X : Menu} />             // 1. change the prop: it animates
+<MorphIcon from={Menu} to={X} progress={0.4} />  // 2. you drive the progress
+<MorphIcon ref={ref} icon={Menu} />              // 3. ref.current.morphTo(X), or set(X) to jump
 ```
 
 | prop | |
 |---|---|
-| `size`, `color`, `strokeWidth`, `absoluteStrokeWidth` | as in lucide-react; any other `<svg>` attribute passes through |
+| `size`, `color`, `strokeWidth`, `absoluteStrokeWidth` | as in lucide-react; other `<svg>` attributes pass through |
 | `spring` | `"snappy"` (default), `"smooth"`, `"bouncy"` or `{ stiffness, damping }` |
-| `reducedMotion` | `"never"` (default), `"user"` (follow the OS setting) or `"always"` (never animate) |
+| `reducedMotion` | `"never"` (default), `"user"` (follow the OS) or `"always"` |
 | `label` | accessible name; without it the icon is `aria-hidden` |
 
-Server rendering emits the exact static SVG, so nothing flashes on hydration. A morph started mid-flight keeps the current velocity.
+SSR renders the final SVG, so nothing flashes on hydration.
 
 ### Lifecycle contract
 
-The same in every binding:
-
-- Mounting without an icon is fine. The first icon renders without animating; `morphTo` before it acts as `set`.
-- While `from` and `to` are both set, they win over `icon`.
+- Mounting without an icon is fine; the first one appears without animating.
+- While `from` and `to` are set, they win over `icon`.
 - Leaving controlled mode and coming back renders like a fresh mount.
 
-### Vue, Svelte, React Native
+### Other frameworks
 
 ```vue
-<MorphIcon :icon="open ? X : Menu" />           <!-- Vue: template ref → morphTo / set -->
+<MorphIcon :icon="open ? X : Menu" />   <!-- Vue 3 -->
 ```
 
 ```svelte
-<MorphIcon icon={open ? X : Menu} />            <!-- Svelte 5: bind:this → morphTo / set -->
+<MorphIcon icon={open ? X : Menu} />    <!-- Svelte 5 -->
 ```
 
-React Native uses the React API as is. It needs Metro with package `exports` (the default since React Native 0.79).
-
-### Astro and plain HTML
-
-The server renders the SVG; in the browser it upgrades to `<morph-icon>`, with no framework runtime.
-
-```astro
----
-import MorphIcon from "morphicons/astro";
-import { Menu } from "lucide";
----
-
-<MorphIcon icon={Menu} id="menu-icon" />
-
-<script>
-  import { X } from "lucide";
-  import type { MorphIconElement } from "morphicons/element";
-  document.querySelector<MorphIconElement>("#menu-icon")!.morphTo(X);
-</script>
-```
-
-Anywhere else:
+React Native has the React API (it needs Metro with package `exports`, the default since 0.79). Astro renders the SVG on the server and upgrades it to a `<morph-icon>` element in the browser. In plain HTML, use the element directly:
 
 ```html
 <script type="module">
@@ -134,92 +92,61 @@ Anywhere else:
 <morph-icon icon="M4 6h16M4 12h16M4 18h16" label="Menu"></morph-icon>
 ```
 
-Attributes take `d` strings; the `icon`, `from` and `to` properties take any icon, `progress` a number. The element has `morphTo()` and `set()`.
-
-### Vanilla
+Without a framework:
 
 ```ts
 import { createMorph } from "morphicons/dom";
 
-const m = createMorph(pathEl, Menu); // pathEl: an SVG <path>
-m.morphTo(X, "snappy");              // animates
-m.set(Check);                        // jumps
-m.seek(X, 0.4);                      // frozen at 40 %
-m.destroy();
+const m = createMorph(pathEl, Menu); // an SVG <path>
+m.morphTo(X);
 ```
 
 ## Fill icons
 
-Stroke icons morph along their lines. When either icon is filled (Material Symbols, Heroicons solid, Phosphor fill…), both are turned into filled shapes and morph shape to shape. There is nothing to configure.
-
-That code (~5.4 KB gzip) is a separate chunk, fetched the first time a filled icon shows up; apps that only use stroke icons never download it. Until it arrives, a filled icon renders in a close approximation, and a morph waits at most 100 ms before falling back to a simple shrink-and-grow transition. To take the network out of the picture:
+When either icon is filled, both morph as filled shapes. The code for that (~5 KB gzip) loads the first time a filled icon shows up; stroke-only apps never download it. To bundle it instead:
 
 ```ts
-import { preloadRegion, setRegionLoader } from "morphicons/dom";
+import { setRegionLoader } from "morphicons/dom";
 import * as region from "morphicons/region";
 
-setRegionLoader(async () => region); // bundle it: no extra request
-// or call preloadRegion() early (on idle, on hover) to fetch it ahead of time
+setRegionLoader(async () => region);
 ```
 
-Known limit: on a random sample of filled pairs, about 4 % briefly paint a little outside the shape mid-flight ([report](bench/region-report.md)).
+Or call `preloadRegion()` early to fetch it before the first morph.
 
 ## Format adapters
 
+- `svgToIcon(markup)`: SVG markup (an Iconify body, a full `<svg>`) to an icon.
+- `maskTarget(el)`: morphs CSS-mask icons in place (UnoCSS, Tailwind icon plugins).
+- `canvasTarget(canvas)`: draws the morph into a canvas or 2D context.
+
 ```ts
-import { canvasTarget, maskTarget, svgToIcon } from "morphicons/adapters";
+createMorph(maskTarget(span), svgToIcon(markup));
 ```
 
-- **`svgToIcon(markup)`** turns SVG markup (an Iconify body, a full `<svg>`, a `<path>`) into an icon: transforms baked, re-gridded to 24 from its `viewBox`. Call it once at module scope.
-- **`maskTarget(el)`** morphs CSS-mask icons in place (UnoCSS `presetIcons`, Tailwind icon plugins): `createMorph(maskTarget(span), icon)`. Call `target.dispose()` after `morph.destroy()`. The browser repaints the mask every frame: fine for toggles, inline SVG stays leaner for icon-heavy views.
-- **`canvasTarget(canvas | ctx)`** draws the morph into a canvas or 2D context: maps, charts, WebGL textures, workers. `onWrite` tells a host with its own render loop when to repaint.
-
-Each adapter tree-shakes on its own. `maskTarget` and `canvasTarget` draw strokes only.
+`maskTarget` and `canvasTarget` draw strokes only.
 
 ## Icon library compatibility
 
-Any set drawn on a 24×24 grid works as is. For other grids, convert once with `fitIcon`:
-
-```ts
-import { fitIcon } from "morphicons";
-
-const search = fitIcon(carbonSearch, 32); // 32×32 → 24×24, returns a d string
-```
-
-An `IconNode` may use `path`, `line`, `circle`, `ellipse`, `rect`, `polyline` and `polygon`, with no `<g>` or `transform`. For markup that has them, use `svgToIcon`.
+Any set on a 24×24 grid works as is. For other grids, use `fitIcon(icon, 32)` from `morphicons`, or `svgToIcon`, which reads the `viewBox`.
 
 ## How it works
 
-Every icon is resampled into evenly spaced points. For each pair of pieces, morphicons solves the rotation, scale and translation that best map one onto the other (2D Procrustes, in closed form), then interpolates rotation, scale and shape separately. So two icons that are the same shape rotated morph as a pure rotation: arrow-right turns 90° into arrow-down without anyone declaring it.
-
-The math, with formulas: [docs/how-it-works.md](docs/how-it-works.md). Design decisions: [docs/adr](docs/adr).
+For each pair of shapes, morphicons solves the rotation, scale and translation that best map one onto the other, in closed form, and interpolates each separately. Two icons that are the same shape rotated simply rotate. Details in [docs/how-it-works.md](docs/how-it-works.md), decisions in [docs/adr](docs/adr).
 
 ## Size
 
-gzip, enforced in CI:
-
-| | KB |
-|---|---|
-| `morphicons` (core) | 6.7 |
-| `morphicons/dom` | 9.2 |
-| `morphicons/react` · `vue` · `svelte` | 10.1 · 10.1 · 11.0 |
-| `morphicons/element` | 10.9 |
-| `morphicons/react-native` (fill chunk included) | 15.7 |
-| fill chunk, on demand | +5.4 |
-| `svgToIcon` · `maskTarget` · `canvasTarget` | 4.2 · 0.7 · 0.5 |
+gzip, enforced in CI: core 6.7 KB, `dom` 9.2, `react` 10.1, `vue` 10.1, `svelte` 11.0, `element` 10.9, `react-native` 15.7. The fill code adds 5.4 on first use. Adapters: 0.5–4.2 each.
 
 ## Development
 
 ```bash
 bun install
-bun test
-bun run typecheck
-bun run lint
-bun run build && bun run size
+bun test && bun run typecheck && bun run lint
 bun run play   # playground → http://localhost:3000
 ```
 
-Playground icons belong to their authors: [Lucide](https://lucide.dev) (ISC), [Feather](https://feathericons.com) (MIT), [Tabler](https://tabler.io/icons) (MIT).
+Playground icons: [Lucide](https://lucide.dev) (ISC), [Feather](https://feathericons.com) (MIT), [Tabler](https://tabler.io/icons) (MIT).
 
 ---
 

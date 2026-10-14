@@ -94,7 +94,7 @@ export function ShowcaseCanvas() {
     >
       <DemoCard
         title="A streaming chart · TanStack Charts"
-        desc="The trend indicator is a morph riding the series: when it turns, the shape and the color turn with it, and icon, line and area share one accent driven by the data. Nudge the drift and watch the flip."
+        desc="The trend icon follows the series: when the trend turns, the icon and its color turn with it. Nudge the drift to flip it."
       >
         <LazyMount minHeight={380}>
           <CanvasChart />
@@ -103,7 +103,7 @@ export function ShowcaseCanvas() {
 
       <DemoCard
         title="Map pins with states · Mapbox GL"
-        desc="Every pin is a Mapbox StyleImage whose pixels come from a morphing 2D canvas: place it, watch it learn its address, hover it, save it. Saving rolls a wave through the map's own texture, pins included."
+        desc="Each pin is a Mapbox image drawn by a morphing canvas. Drop one, hover it, save it."
       >
         <LazyMount minHeight={568}>
           <CanvasMap />

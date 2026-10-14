@@ -1,6 +1,6 @@
-# Region morphing: report (branch `feat/region-morphing`)
+# Region morphing: measurements (2.0)
 
-Everything below was measured on this branch:
+Everything below was measured before the 2.0 release, against 1.x (`main` at 38d2a72):
 - the CLI benchmark (`bun run bench:regions`, JSC, raw output at the end);
 - the playground (`bun run play:regions`) running in Chrome 152 against the real server, including its network lab.
 
@@ -81,7 +81,7 @@ That is a **~2–5 ms main-thread task on the click** on desktop. Low-end Androi
 
 The server throttles the chunk with a cookie; the page is the real build with the real dynamic import.
 
-| case | what happens (measured) | before this branch's fixes | mitigation / most efficient solution |
+| case | what happens (measured) | before the review fixes | mitigation / most efficient solution |
 |---|---|---|---|
 | fast / cached (≤ 100 ms) | flies; start delay = load time (2–12 ms on the tailnet) | same | none needed |
 | slow (400 ms / 1.5 s / 5 s) | **flies the fallback at +100 ms** (old shape shrinks, new one grows), rest upgrades to the exact region when the chunk lands, next morphs fly. Measured in the lab before the fallback: jump at +102 ms, upgrade at +415 / +1513 ms | waited the full load time with no visual response, then flew late | budget + fallback (fixed); a fill icon prefetches on idle at mount |

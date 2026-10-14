@@ -19,16 +19,14 @@ export default function ShowcasePage() {
         active="core"
         lede={
           <>
-            The icon swaps that show up most in real shadcn/ui apps, rebuilt as
-            morphs with the core library alone: one MorphIcon component
-            rendering inline SVG. Pick a library, tune the physics, copy the
-            component in your framework.
+            The icon swaps real shadcn/ui apps use most, as morphs. Pick a
+            library, tune the spring, copy the component for your framework.
           </>
         }
         traits={[
           {
             label: "Why this path",
-            body: "Inline SVG straight from icon data, with an SSR-exact first paint and accessibility built in. This is the default way to ship a morph, and the lightest.",
+            body: "Inline SVG from icon data, exact on first paint, accessible by default. The default way to ship a morph, and the lightest.",
           },
           {
             label: "What it weighs",

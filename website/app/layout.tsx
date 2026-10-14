@@ -41,6 +41,8 @@ export const metadata: Metadata = {
     "icon animation",
     "lucide",
     "lucide-react",
+    "material symbols",
+    "filled icons",
     "animate lucide icons",
     "feather icons",
     "tabler icons",

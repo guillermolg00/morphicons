@@ -5,7 +5,7 @@ import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 export const metadata: Metadata = {
 	title: "Roadmap",
 	description:
-		"Where morphicons is heading: filled icons, adapter ergonomics, SVG Doctor, a shareable Studio and a custom animation editor.",
+		"Where morphicons is heading: filled icons in the adapters, adapter ergonomics, SVG Doctor, a shareable Studio and a custom animation editor.",
 	alternates: { canonical: "/roadmap" },
 };
 
@@ -67,6 +67,10 @@ const GROUPS: Group[] = [
 				title: "Showcase",
 				note: "Copy-paste components for the icon swaps real apps ship, in core, mask and canvas tabs.",
 			},
+			{
+				title: "Filled icons — 2.0",
+				note: "Material Symbols, Heroicons solid, Phosphor fill: stroked and filled icons morph into each other. The code loads on first use.",
+			},
 		],
 	},
 	{
@@ -74,8 +78,13 @@ const GROUPS: Group[] = [
 		dot: "border border-ink bg-canvas",
 		items: [
 			{
-				title: "Filled icons",
-				note: "Material Symbols, Heroicons solid, Phosphor fill: stroked and filled icons morph into each other, through a chunk that loads on first use. In review.",
+				title: "Filled icons in the adapters",
+				note: (
+					<>
+						<Code>maskTarget</Code> and <Code>canvasTarget</Code> draw strokes only
+						today.
+					</>
+				),
 			},
 			{
 				title: "Adapter ergonomics",

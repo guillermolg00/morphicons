@@ -37,20 +37,19 @@ export default function CanvasShowcasePage() {
 				active="canvas"
 				lede={
 					<>
-						canvasTarget turns any canvas or 2D context into a morph target.
-						The icon stops being a DOM node and becomes pixels you own: a GPU
-						texture inside a map, a sprite composited into a chart, a favicon,
-						an OffscreenCanvas in a worker.
+						canvasTarget draws the morph into any canvas or 2D context: a
+						texture inside a map, a sprite in a chart, a favicon, an
+						OffscreenCanvas in a worker.
 					</>
 				}
 				traits={[
 					{
 						label: "Why this path",
-						body: "Icons that live where the DOM cannot reach: WebGL scenes, canvas charts, workers, video frames. However many icons fly at once, they share the driver's single rAF.",
+						body: "Icons where the DOM can't reach: WebGL scenes, canvas charts, workers. Every icon shares the driver's single rAF.",
 					},
 					{
 						label: "How it works",
-						body: "Path2D parses each frame's geometry, so a write is one stroke() call. Hosts with their own render loop never hand over their context: the icon draws on a small dedicated canvas, the host composites the pixels, and onWrite is the dirty signal.",
+						body: "Each frame is one stroke() of a Path2D. Hosts with their own render loop give the icon a small canvas of its own and composite it; onWrite says when to repaint.",
 					},
 					{
 						label: "The tradeoff",
@@ -65,17 +64,14 @@ export default function CanvasShowcasePage() {
 						The whole integration
 					</h2>
 					<p className="mb-4 mt-1.5 text-sm leading-6 text-body">
-						One adapter call around the plain DOM driver. Everything else in
-						the demos above (tinting, dirty flags, StyleImage plumbing) is
-						host-side compositing of the pixels this produces.
+						One adapter call around the DOM driver. The rest of the demos above
+						is the host compositing these pixels.
 					</p>
 					<SnippetBlock label="morphicons/adapters" code={SNIPPET} />
 					<p className="mt-4 text-[13px] leading-6 text-mute">
-						Mapbox GL and the chart runtime load only inside this tab, and
-						only as their card scrolls into view: the core showcase stays as
-						light as the library it demos. The save wave is Canvas UI&apos;s
-						Ripple shader (MIT + Commons Clause), adapted to sample the
-						map&apos;s own canvas.
+						Mapbox GL and the chart runtime load only when their card scrolls
+						into view. The save wave is Canvas UI&apos;s Ripple shader (MIT +
+						Commons Clause).
 					</p>
 				</div>
 			</ShowcaseShell>

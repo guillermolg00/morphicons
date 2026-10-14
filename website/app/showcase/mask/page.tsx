@@ -19,11 +19,10 @@ export default function MaskShowcasePage() {
         active="mask"
         lede={
           <>
-            Iconify-style pipelines render icons as CSS masks: a span whose
-            shape is a <code className="font-mono text-[0.92em]">mask-image</code>,
-            no path in the DOM. The mask adapter morphs that span as it is.
-            svgToIcon reads the markup, maskTarget drives the mask, and your
-            element keeps its classes, its paint and its place in the layout.
+            Iconify-style pipelines render icons as CSS masks: a span with a{" "}
+            <code className="font-mono text-[0.92em]">mask-image</code> and no
+            path in the DOM. The mask adapter morphs that span as it is, keeping
+            its classes and its paint.
           </>
         }
         traits={[
@@ -33,7 +32,7 @@ export default function MaskShowcasePage() {
           },
           {
             label: "How it works",
-            body: "svgToIcon turns markup into morphable data, re-gridding off-grid sets via their viewBox. maskTarget keeps a hidden pair of SVG mask buffers and flips mask-image between them each frame, which is what keeps Safari repainting. Whatever paints the element shows through the moving shape.",
+            body: "svgToIcon turns the markup into icon data. maskTarget flips mask-image between two hidden SVG masks every frame, which keeps Safari repainting.",
           },
           {
             label: "The tradeoff",
