@@ -123,6 +123,7 @@
     "play:regions": "bun scripts/serve-regions.ts",
     "bench:regions": "bun bench/region.bench.ts",
     "bench:topology": "bun bench/region-topology.ts",
+    "bench:wide": "bun bench/region-wide.ts",
     "lint": "biome check .",
     "format": "biome check --write .",
     "build": "tsdown && bun scripts/build-svelte.ts && bun scripts/build-astro.ts",
@@ -151,7 +152,7 @@
       "name": "region normalizer (morphicons/region standalone; lazy chunk of every binding)",
       "path": "dist/region.js",
       "import": "*",
-      "limit": "10.7 KB",
+      "limit": "11.1 KB",
       "gzip": true
     },
     {
@@ -196,7 +197,7 @@
       "name": "core + dom + react-native (MorphIcon, react/rn/rnsvg external; Metro inlines the region chunk)",
       "path": "dist/react-native.js",
       "import": "*",
-      "limit": "15.1 KB",
+      "limit": "15.4 KB",
       "gzip": true
     },
     {

@@ -11,15 +11,16 @@ Machine: Linux x64, 12 threads. Icons: 318 upstream Iconify icons, 10 libraries,
 | | result |
 |---|---|
 | Static cost (every page) | **+1.7 KB gzip** on dom and on every binding (size-limit: dom 7.12 → 8.81; react 8.01 → 9.70). +1.07 of it is the region model; +0.6 the fixes after review (§1) |
-| Lazy cost (first morph with a fill icon) | **5.01 KB gzip / 4.59 KB brotli** incremental chunk (was 4.13 / 3.75; in the preview's Bun build the topology rules add 0.64 and the moved caches 0.26). Fetch 2 ms on the tailnet, parse + eval 0.6 ms in Chrome desktop, measured on the 4.13 KB chunk |
+| Lazy cost (first morph with a fill icon) | **4.92 KB gzip / 4.43 KB brotli** incremental chunk (esbuild: dom + a static region import − dom; was 4.13 / 3.75 before the topology rules and the moved caches). Fetch 2 ms on the tailnet, parse + eval 0.6 ms in Chrome desktop, measured on the 4.13 KB chunk |
 | Stroke-only apps | download **0 bytes** of the chunk and never write paint (tested) |
 | Normalize (once per icon, cached) | median **1.08 ms**, p95 1.83, max 3.24 (JSC). Browser (V8): median 0.6, max 2.3 |
 | Plan (once per pair, cached) | median **0.05 ms**, max 0.72 |
 | Frame (every rAF) | **11.9 µs** region vs 9.4 µs centerline (median). 20 icons morphing at once ≈ 0.25 ms per frame |
 | Fidelity vs the browser rendering the ORIGINAL svg | IoU median **0.9987**, worst **0.983** (lucide circle, a thin ring). 0 of 322 icons below 0.98 |
 | Discretization (cell ⅛ vs a 1/64 reference) | IoU median 0.99917. Mean boundary deviation ≈ 0.01 units (≈ 1% of a pixel at 24 px) |
-| Robustness | 318/318 icons normalize, sample and plan; 0 NaN; winding locked at every t (tested) |
-| Topology (4798 region pairs) | **0** endpoints that don't render their icon (was 1057 of 5267: the bell video). 19 pairs with a transient hole leak > 1% of ink, worst 2.0% (168, worst 9.2%, at the first measurement over these pairs: §4). 65 of 4590 same-concept pairs turn > 46°, almost all moons drawn rotated (was 237) |
+| Robustness | 318/318 icons normalize, sample and plan; 0 NaN; winding locked at every t (tested). Held out: 9,998 of 10,000 random Iconify icons normalize (2 use `<use>`, rejected by `svgToIcon`), 0 NaN, 0 non-canonical regions (§8) |
+| Topology (4798 region pairs) | **0** endpoints that don't render their icon (was 1057 of 5267: the bell video). **2** pairs paint > 1% of ink outside the surface mid-flight, worst 1.3%, both outer folds (168, worst 9.2%, at the first measurement over these pairs: §4). 65 of 4590 same-concept pairs turn > 46°, almost all moons drawn rotated (was 237) |
+| Held-out corpus (§8) | the planner was tuned on the vendored icons, and it shows: random pairs of unseen icons paint > 1% outside the surface mid-flight in **5–6%** of pairs (vs 0.5% on the tuning icons), almost all outer folds of a few frames. 0 broken endpoints, 0 throws |
 | Color | every binding paints a filled path in the `color` prop; React Native forwards paint (was: CSS color on the web, stroked outline on RN) |
 
 ## 1. Weight
@@ -67,7 +68,7 @@ That is a **~2–5 ms main-thread task on the click** on desktop. Low-end Androi
 |---|---|
 | App knows it mixes stroke and fill | `preloadRegion()` on idle (`requestIdleCallback`) or on the first `pointerenter` / `focus` of a toggle. Skip it if `navigator.connection.saveData` |
 | Low-end devices, long lists of fill icons | Precompute at build time with `toRegion()` (pure, emits `data-region`): **zero runtime normalization**. Or cell ¼ on device: 0.40 ms per icon, IoU 0.9976 |
-| Critical UI that must never jump | `setRegionLoader(async () => region)` with a static `import * as region from "morphicons/region"`: +5.0 KB eager, no network |
+| Critical UI that must never jump | `setRegionLoader(async () => region)` with a static `import * as region from "morphicons/region"`: +4.9 KB eager, no network |
 | Many fill icons mounted at once | Nothing to do: one shared load (single promise), N icons → 1 request |
 
 ## 3. Network edge cases (measured in the network lab)
@@ -83,7 +84,7 @@ The server throttles the chunk with a cookie; the page is the real build with th
 | fail, then the network comes back | **Chromium caches the failed `import()` for the document's lifetime** (Chromium 152: a second `import()` fails with no request). The next need re-runs the chunk as a module script under `url#<time>`: a new module-map key, the same URL for the server. Verified end to end in Chromium 152 with `dist/`: 503 → fallback flight, no second request in that instant; next morph → `region.js#…` → region flight | icons stayed jumps until reload | fixed where the error names the URL (Chromium, Firefox). Safari names none; a CSP / Trusted Types policy blocking module scripts blocks the retry. Both: static import via `setRegionLoader` |
 | stale deploy (old HTML, hashed chunk deleted → 404) | same as fail | same | keep old hashed assets for N deploys / skew protection (Vercel), or a static import |
 | superseded request (A → fill, then → stroke before load) | latest wins, the stale flight is dropped (tested) | same | none needed |
-| bundler without splitting (IIFE/UMD, single-file) | inlined: no network, +5.0 KB eager | n/a | fine as is |
+| bundler without splitting (IIFE/UMD, single-file) | inlined: no network, +4.9 KB eager | n/a | fine as is |
 | React Native / Metro | inlined (gate counts it). Paint goes through the shim (`setNativeProps`), republished on every render like `d`; `currentColor` / `inherit` resolve to the `color` prop | fill icons drew as the stroked outline of their region (fixed) | none needed. Not verified on a device: the Path mock replays Fabric commits |
 | SSR | every binding renders a fill icon's paint in the server markup (its rest look, §5); the client prefetches on idle and upgrades the rest `d` to the region. Pinned by SSR tests in React, Vue, Svelte and react-native-web; `<morph-icon>` adopts a server-filled path as a fill icon (tested) | the server markup drew fill icons stroked until hydration | hydration-safe: the driver writes after mount |
 | CSP / CDN | the chunk is a same-origin module script; it needs `script-src 'self'` (or `'strict-dynamic'` from a nonced entry). A cross-origin CDN must send CORS headers | n/a | config only |
@@ -109,11 +110,14 @@ The review video (Tabler solid bell → Heroicons outline bell) showed a hole ap
 | check restricted to pairs that fly as regions (stroke ↔ stroke never does) | 4798 | 0 | 168 (9.2%) | |
 | unmatched holes close on the first half, new ones open on the second | 4798 | 0 | 65 (8.9%) | |
 | holes pair only with an overlapping hole (bbox IoU ≥ 0.25 in the outer's frame) | 4798 | 0 | 23 (3.1%) | 237 of 4590 |
-| stronger upright tie-break for outers (λ 0.05 → 0.3) | 4798 | 0 | **19 (2.0%)** | **65 of 4590** |
+| stronger upright tie-break for outers (λ 0.05 → 0.3) | 4798 | 0 | 19 (2.0%) | 65 of 4590 |
+| a vanishing hole moves with its outer's local blend; a matched hole that strays at t = ¼, ½, ¾ splits into one that closes and one that opens | 4798 | 0 | **2 (1.3%)** | **65 of 4590** |
 
 ¹ The check's own artifact: one shared sampling phase on both axes put 45° edges exactly on pixel centers. Both benches now use a different phase per axis.
 
-The 19 left are short slivers mid-flight on pairs whose holes differ in structure (worst: ph/line:home → bi/solid:home, 2.0% of ink at t = 0.375). The only complete fix is drawing holes as a mask (outer ∖ ∪ holes) instead of nonzero winding; that means more DOM per icon and a `<mask>` in React Native, so it is not done.
+The 2 left are not holes: the outer folds over itself for a few frames (heroicons/solid:check → plus, 1.3% at t = 0.375, has no hole at all; mdi/line:home → iconoir/stroke:home, 1.2% at t = 0.25). On icons the planner never saw, folds are the main defect left (§8). The complete fix is drawing holes as a mask (outer ∖ ∪ holes) instead of nonzero winding, plus a fold-aware matcher; that means more DOM per icon and a `<mask>` in React Native, so it is not done.
+
+The spins (65) are mostly moons drawn rotated across libraries. A stronger tie-break (λ 0.3 → 0.4) fixes the two home flips but was not measured on the wide corpus, so it is not committed.
 
 ## 5. Accuracy
 
@@ -131,6 +135,7 @@ The 19 left are short slivers mid-flight on pairs whose holes differ in structur
   - Square / butt caps and miter joins are modelled as round. All the stroke libraries measured use round; the IoU would show the difference.
   - White "knockout" fills are not subtracted.
   - Duotone layers with opacity < 0.5 are skipped by design, before the chunk too.
+- **Before the chunk** (what a fill icon rests on until the chunk lands, `bun run bench:wide`, IoU < 0.99 against its region, 2,010 Iconify fill icons): one merged fill 118 → translucent layers dropped 70 → closest single look (stroke / fill + stroke / evenodd) **25** (1.2%). Held out (6,685 fill icons, seed 3): 95 (1.4%). What's left are icons whose elements cancel (all-evenodd XOR, opposite winding) or mix looks one `<path>` can't give. One regressed: iconoir:mail-out-solid 0.93 → 0.27 (one stroke-only element turns the whole icon to stroke); bi:music-note 0.999 → 0.918. The exact region replaces the rest when the chunk lands.
 
 ## 6. Memory
 
@@ -148,6 +153,29 @@ Per pair, plan plus output buffers: median 20 KB, max 60 KB. Everything is keyed
 - a wall that cycles every concept across libraries;
 - on-device benchmarks (timing / fidelity with visual diffs / load cost);
 - `?lab`: the network lab.
+
+## 8. Held-out corpus (overfitting check)
+
+Every heuristic above was tuned on the 318 vendored icons. `bun run bench:wide [perSet] [pairs] [seed]` draws a seeded sample of the full Iconify sets installed as devDeps (~53k icons, 10 sets), runs the same checks and the same pairs procedure over the vendored icons as a control. Two runs on the final code: seed 1 (300 per set) and seed 3 (1,000 per set, never looked at while tuning).
+
+| | seed 1 · 3,000 icons · 3,000 pairs | seed 3 · 10,000 icons · 6,000 pairs | vendored control (3,000 / 6,000 pairs) |
+|---|---|---|---|
+| `toRegion` throws / NaN / empty | 0 / 0 / 0 | 0 / 0 / 0 (2 rejected earlier by `svgToIcon`: `<use>`) | 0 / 0 / 0 |
+| non-canonical region (winding ∉ {0, 1}) | **0** (3 before the fix below) | **0** | 0 |
+| region vs per-element truth, IoU at 96 px | median 0.9994, min 0.9852 | median 0.9994, min 0.9844 | |
+| boundary deviation (units of 24) | median 0.005, p95 0.036, max 0.067 | median 0.006, p95 0.042, max 0.129 | |
+| `toRegion` time (JSC, machine under load) | median 1.35 ms, p95 2.5, max 9.2 | median 1.46 ms, p95 2.6, max 8.3 | |
+| rest before the chunk, IoU < 0.99 | 25 of 2,010 fill icons | 95 of 6,685 | |
+| broken endpoints | 0 | 0 | 0 |
+| pairs painting > 1% outside the surface mid-flight | 151 (5.0%): 20 holes, 136 folds | 366 (6.1%): 42 holes, 333 folds | 15 / 34 (0.5–0.6%), all folds |
+| landing (64 samples per contour vs region), IoU < 0.95 | 50 (1.7%) | 180 (1.8%) | |
+| plan time | median 0.09 ms, p95 0.24, max 1.7 | median 0.10 ms, p95 0.25, max 1.6 | |
+
+What it found and what was done:
+- **Touching contours (fixed).** Integer coordinates (MingCute, MDI) put grid nodes exactly on shape edges, so two contours shared crossing points and nesting by a vertex was a coin flip: a lens sparkle came out as a hole, a balloon's panels and three MingCute line icons wound 2 or −1. Crossings are now kept 10⁻⁵ of a cell off the nodes: contours never touch and any vertex nests exactly. Pinned by two tests with the real MDI and MingCute paths.
+- **Hole leaks (improved).** The vanishing-hole and stray-hole rules of §4 took seed 1 from 52 to 20 pairs (182 → 151 in total).
+- **Outer folds (not fixed).** Outers of different structure (paper clip, spiral, snowflake, cogs) fold over themselves for a few frames: 4.5–5.5% of random unseen pairs, against 0.5% on the tuning icons. That gap is the overfitting. They are slivers, not stuck states; the fix is the mask rendering of §4 or a fold-aware matcher.
+- **Landing snap (kept).** A flight lands on 64 samples per contour, then snaps to the exact region. For spirals, snowflakes and cogs with many teeth, 64 points miss detail (IoU < 0.95 on 1.7%), so the last frame jumps a little. 96 samples cut it to 2 of 3,000 but double the plan time and frame cost of every pair, so 64 stays.
 
 ## Appendix: raw CLI benchmark output
 
