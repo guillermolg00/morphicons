@@ -307,7 +307,8 @@ function distTo(ix: ReturnType<typeof segIndex>, x: number, y: number, cap = 3):
 
 // ---------------------------------------------------------------------------
 // Element paint, as src/region/index.ts partsOf reads it on a fill icon, and
-// the rest rule as src/dom/index.ts restRule (not exported) computes it.
+// the fill rule the driver painted the rest with before it wound evenodd
+// elements for nonzero (kept as the base of the counterfactual breakdown).
 
 const painted = (v: unknown): boolean =>
   v !== undefined && String(v).trim().toLowerCase() !== "none";
@@ -481,7 +482,7 @@ function restMasks(
   const rule = restRule(icon);
   const els = elementsOf(icon);
   const T = raster(ic.regionPolys, R);
-  // M0: what a binding paints before the chunk: ONE merged d, restRule
+  // M0: the old rest: ONE merged d under the icon's own rule
   const M0 = raster(flatten(canonicalD(icon)).polys, R, rule);
   const vis = els.filter((e) => !e.trans);
   const strokes = new Uint8Array(R * R);
@@ -853,13 +854,13 @@ log(
 resampleIoU.sort((a, b) => a[1] - b[1]);
 const rsv = resampleIoU.map((x) => x[1]);
 log(
-  `64-pt resample vs region (what t→1 lands on vs the rest snap) IoU: median ${f4(q(rsv, 0.5))} · <0.99 ${rsv.filter((v) => v < 0.99).length} · <0.95 ${rsv.filter((v) => v < 0.95).length} · worst ${resampleIoU
+  `resample (64, or 128 past FINE) vs region (what t→1 lands on vs the rest snap) IoU: median ${f4(q(rsv, 0.5))} · <0.99 ${rsv.filter((v) => v < 0.99).length} · <0.95 ${rsv.filter((v) => v < 0.95).length} · worst ${resampleIoU
     .slice(0, 5)
     .map(([id, v]) => `${id} ${f3(v)}`)
     .join(", ")}`,
 );
 log(
-  `64-pt samples already non-simple at rest (winding ∉ {0,1} on > 0.1% of ink): ${samplesNonSimple.length}${
+  `samples already non-simple at rest (winding ∉ {0,1} on > 0.1% of ink): ${samplesNonSimple.length}${
     samplesNonSimple.length
       ? ` — ${samplesNonSimple
           .slice(0, 5)
@@ -900,7 +901,7 @@ log(
     .join(", ")}`,
 );
 log(
-  `old model (one merged d filled under restRule) · IoU < 0.99: ${below(0.99).length} (${pct(below(0.99).length, rest.length)}) · < 0.95: ${below(0.95).length} (${pct(below(0.95).length, rest.length)}) — the breakdown below is of this model`,
+  `old rest (one merged d under the icon's own rule; the counterfactual base) · IoU < 0.99: ${below(0.99).length} (${pct(below(0.99).length, rest.length)}) · < 0.95: ${below(0.95).length} (${pct(below(0.95).length, rest.length)}) — the breakdown below is of this model`,
 );
 log("by set (fill icons · <0.99 · <0.95):");
 for (const set of SET_NAMES) {
@@ -1307,7 +1308,7 @@ logTopology(topology(icons, N_PAIRS, SEED * 7919 + 13), true);
   log(`### 4b. Control: same procedure over the ${pool.length} vendored (tuning) icons`);
   const rs = pool.map((ic) => iou(ic.r96, raster(ic.regionPolys, 96)));
   log(
-    `64-pt resample vs region IoU on these: median ${f4(q(rs, 0.5))} · <0.99 ${rs.filter((v) => v < 0.99).length} · <0.95 ${rs.filter((v) => v < 0.95).length} (wide sample: section 1)`,
+    `resample (64 or 128) vs region IoU on these: median ${f4(q(rs, 0.5))} · <0.99 ${rs.filter((v) => v < 0.99).length} · <0.95 ${rs.filter((v) => v < 0.95).length} (wide sample: section 1)`,
   );
   logTopology(topology(pool, N_PAIRS, SEED * 7919 + 13), false);
 }

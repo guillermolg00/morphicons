@@ -61,6 +61,21 @@ const MATERIAL_CLOSE = svgToIcon(
   '<svg viewBox="0 -960 960 960"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>',
 );
 
+// A 24-tooth gear: 96 corners, more than 64 samples can land on.
+const GEAR: IconNode = [
+  [
+    "path",
+    {
+      d: `${Array.from({ length: 96 }, (_, k) => {
+        const a = (k * Math.PI) / 48;
+        const r = k % 4 < 2 ? 10 : 8;
+        return `${k ? "L" : "M"}${(12 + r * Math.cos(a)).toFixed(3)} ${(12 + r * Math.sin(a)).toFixed(3)}`;
+      }).join("")}Z`,
+      fill: "currentColor",
+    },
+  ],
+];
+
 const regionPlan = (a: IconNode | string, b: IconNode | string) =>
   buildRegionPlan(resampleRegion(toRegion(a)), resampleRegion(toRegion(b)));
 
@@ -442,6 +457,38 @@ describe("region plans", () => {
         expect(Math.abs(end[k][i] - it.bO[i])).toBeLessThan(1e-9);
     });
   });
+
+  test("an outer whose best offset folds mid-flight takes the next one that doesn't", () => {
+    // heroicons plus-20-solid → arrow-small-up: the best-scoring offset
+    // twists the plus into a bow-tie at t ≈ ½ (4.8% of ink wound negative)
+    const plus = svgToIcon(
+      '<svg viewBox="0 0 20 20"><path fill="currentColor" d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5z"/></svg>',
+    );
+    const arrow = svgToIcon(
+      '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 19.5v-15m0 0l-6.75 6.75M12 4.5l6.75 6.75"/></svg>',
+    );
+    neverNegative(regionPlan(plus, arrow));
+  });
+
+  test("an icon 64 points can't follow samples at 128; a mixed pair flies at 128", () => {
+    expect(resampleRegion(toRegion(GEAR))[0].pts.length).toBe(256);
+    expect(resampleRegion(toRegion(PLAY))[0].pts.length).toBe(128);
+    const plan = regionPlan(PLAY, GEAR);
+    expect(plan.n).toBe(128);
+    for (const t of [0, 0.5, 1])
+      for (const f of frameAt(plan, t)) {
+        expect(f.length).toBe(256);
+        for (const v of f) expect(Number.isFinite(v)).toBe(true);
+      }
+    // the doubled side keeps its shape: every start point lies on the play
+    const [a] = resampleRegion(toRegion(PLAY));
+    const start = frameAt(plan, 0)[0];
+    for (let i = 0; i < 256; i += 4) {
+      const k = i / 2;
+      expect(start[i]).toBeCloseTo(a.pts[k], 9);
+      expect(start[i + 1]).toBeCloseTo(a.pts[k + 1], 9);
+    }
+  });
 });
 
 describe("svgToIcon accepts fill-drawn icons", () => {
@@ -634,8 +681,7 @@ describe("driver: region flights", () => {
     // interrupted mid-fallback: it chains from what is on screen
     m.morphTo(PAUSE);
     frame(16);
-    for (const v of (p.attrs.get("d") ?? "").match(/-?\d+(\.\d+)?/g) ?? [])
-      expect(Number.isFinite(Number(v))).toBe(true);
+    expect(p.attrs.get("d")).not.toMatch(/NaN|undefined/);
     settleAll();
     expect(p.attrs.get("fill")).toBe("currentColor");
     expect((p.attrs.get("d") ?? "").match(/M/g)?.length).toBe(2); // the two bars
@@ -668,9 +714,9 @@ describe("driver: region flights", () => {
       settleAll();
       expect(imports).toBe(1);
       expect(scripts.length).toBe(0); // no second request in the same instant
-      m.morphTo(LUCIDE_X); // the next need retries — not through import()
+      m.morphTo(LUCIDE_X); // the next need retries: import() fails at once again
       await flush();
-      expect(imports).toBe(1);
+      expect(imports).toBe(2);
       expect(scripts.length).toBe(1);
       expect(scripts[0].type).toBe("module");
       // same URL for the server (CDN cache, signed URLs), new key for the
@@ -690,6 +736,55 @@ describe("driver: region flights", () => {
       doc.createElement = create;
       doc.head.append = append;
     }
+  });
+
+  test("Safari names no URL: the retry reads it off the loader's source", async () => {
+    let imports = 0;
+    const offline = () =>
+      Promise.reject(new TypeError("Importing a module script failed."));
+    // (`offline()` is truthy: the import below is source text, never run)
+    setRegionLoader(() => {
+      imports++;
+      // @ts-expect-error — a URL, as a bundler emits it
+      return (offline() || import("https://cdn.example/assets/region-abc.js")) as never;
+    });
+    const scripts: Array<{ src: string; onload: (() => void) | null }> = [];
+    const doc = (globalThis as unknown as { document: unknown }).document as {
+      createElement: unknown;
+      head: { append: unknown };
+    };
+    const create = doc.createElement;
+    const append = doc.head.append;
+    doc.createElement = () => ({ type: "", src: "", onload: null, onerror: null });
+    doc.head.append = (s: (typeof scripts)[number]) => scripts.push(s);
+    try {
+      await preloadRegion().catch(() => {});
+      expect(scripts.length).toBe(0);
+      const retry = preloadRegion();
+      await flush();
+      expect(imports).toBe(2); // a plain import() first (Safari ≤26.1 fetches again)
+      expect(scripts.length).toBe(1);
+      expect(scripts[0].src).toMatch(
+        /^https:\/\/cdn\.example\/assets\/region-abc\.js#\d+$/,
+      );
+      scripts[0].onload?.();
+      expect((await retry).regionPlan).toBe(region.regionPlan); // its hooks
+    } finally {
+      doc.createElement = create;
+      doc.head.append = append;
+    }
+  });
+
+  test("a loader that names no URL anywhere (webpack) just retries import()", async () => {
+    let imports = 0;
+    setRegionLoader(() =>
+      ++imports === 1
+        ? Promise.reject(new Error("Loading chunk 7 failed."))
+        : Promise.resolve(region),
+    );
+    await preloadRegion().catch(() => {});
+    expect(await preloadRegion()).toBe(region);
+    expect(imports).toBe(2);
   });
 
   test("a superseded request is dropped when the chunk arrives late", async () => {
@@ -717,10 +812,28 @@ describe("driver: region flights", () => {
     frame(16);
     m.morphTo(PAUSE);
     frame(16);
-    for (const v of (p.attrs.get("d") ?? "").match(/-?\d+(\.\d+)?/g) ?? [])
-      expect(Number.isFinite(Number(v))).toBe(true);
+    expect(p.attrs.get("d")).not.toMatch(/NaN|undefined/);
     settleAll();
     expect(p.attrs.get("fill")).toBe("currentColor");
+    m.destroy();
+  });
+
+  test("a 128-point flight interrupted after the chunk is gone falls back without NaN", async () => {
+    await preloadRegion();
+    const p = fake();
+    const m = createMorph(p.el, PLAY);
+    m.morphTo(GEAR);
+    frame(16);
+    frame(16);
+    setRegionLoader(() => Promise.reject(new Error("offline")));
+    m.morphTo(PAUSE);
+    await flush();
+    for (const t of [16, 16, 16, 300]) {
+      frame(t);
+      expect(p.attrs.get("d")).not.toMatch(/NaN|undefined/);
+    }
+    settleAll();
+    expect((p.attrs.get("d") ?? "").match(/M/g)?.length).toBe(2);
     m.destroy();
   });
 

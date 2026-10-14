@@ -11,10 +11,11 @@ import {
   makeItem,
   type PlanItem,
   pairUp,
+  procrustes,
   rotatePts,
   SURJ_MAX,
 } from "../core/plan";
-import { inside, signedArea } from "../core/region";
+import { distSeg, inside, signedArea } from "../core/region";
 import { resamplePath } from "../core/resample";
 import type { IconInput, Sampled } from "../core/types";
 
@@ -25,23 +26,57 @@ import type { IconInput, Sampled } from "../core/types";
    threshold relaxes until it fits (a gear with 40 teeth samples fine). */
 const REGION_THRESHOLDS = [Math.PI / 4, Math.PI / 3, Math.PI / 2, Math.PI];
 
-/** Samples a normalized region: one Sampled per contour, every one closed,
- *  `hole` read from the winding (outers positive, holes negative). */
-export function resampleRegion(icon: IconInput, N = 64): Sampled[] {
-  return iconToCubics(icon).map((path) => {
-    let pts: Float64Array | undefined;
-    for (const th of REGION_THRESHOLDS) {
-      try {
-        pts = resamplePath({ pts: path.pts, closed: true }, N, th);
+// Farthest a contour vertex may sit from the sampled polygon (viewBox 24
+// units) before an icon samples at 128: past it, the landing on the exact
+// shape snaps. ~10% of icons; samples vs shape IoU < 0.95: 1.7% → 0.2%.
+const FINE = 0.3;
+
+// True when some vertex of a contour (cubic chain of a polyline) lies
+// farther than FINE from every chord of its samples. Samples run along the
+// contour in order, so the search resumes where the last vertex matched.
+function coarse(path: Float64Array, s: Float64Array): boolean {
+  const n = s.length / 2;
+  let j = 0;
+  for (let v = 0; v < path.length; v += 6) {
+    for (let k = 0; ; k++) {
+      if (k === n) return true;
+      const a = (j + k) % n;
+      const b = (a + 1) % n;
+      if (
+        distSeg(path[v], path[v + 1], s[2 * a], s[2 * a + 1], s[2 * b], s[2 * b + 1]) <=
+        FINE
+      ) {
+        j = a;
         break;
-      } catch {
-        // more corners than intervals at this threshold — relax it (π
-        // anchors nothing, so the last threshold always fits)
       }
     }
-    const s = pts as Float64Array;
-    return { pts: s, closed: true, hole: signedArea(s) < 0 };
-  });
+  }
+  return false;
+}
+
+/** Samples a normalized region: one Sampled per contour, every one closed,
+ *  `hole` read from the winding (outers positive, holes negative). N per
+ *  contour: 64, or 128 for every contour of an icon that 64 can't follow
+ *  (snowflake tips, spiral turns: the landing would snap). */
+export function resampleRegion(icon: IconInput, N?: number): Sampled[] {
+  const paths = iconToCubics(icon);
+  const at = (n: number): Sampled[] =>
+    paths.map((path) => {
+      let pts: Float64Array | undefined;
+      for (const th of REGION_THRESHOLDS) {
+        try {
+          pts = resamplePath({ pts: path.pts, closed: true }, n, th);
+          break;
+        } catch {
+          // more corners than intervals at this threshold — relax it (π
+          // anchors nothing, so the last threshold always fits)
+        }
+      }
+      const s = pts as Float64Array;
+      return { pts: s, closed: true, hole: signedArea(s) < 0 };
+    });
+  const s = at(N ?? 64);
+  return N || !paths.some((p, k) => coarse(p.pts, s[k].pts)) ? s : at(128);
 }
 
 // ---------------------------------------------------------------------------
@@ -68,6 +103,73 @@ export function resampleRegion(icon: IconInput, N = 64): Sampled[] {
 // a star, a house upside down. Icons stand upright, so a spin has to buy a
 // real residual gain (a moon drawn rotated keeps its 90°: gain ≈ 0.4).
 const REGION_LAMBDA = 0.3;
+
+// The best-scoring offset can still fold an outer mid-flight: its residual
+// blend crosses itself (a twisted bow-tie). The next offsets within
+// FOLD_SLACK of that score (up to FOLD_TRIES) are tried in order, the first
+// that stays simple at m = ½ wins (checking ¼ and ¾ too costs 3× and, being
+// stricter, unfolds fewer pairs). Held-out pairs folded past 1% of ink:
+// 4.3% → 3.4%; same-concept spins unchanged.
+const FOLD_SLACK = 0.1;
+const FOLD_TRIES = 16;
+
+// True when the closed polygon ½·(a + b) crosses itself.
+function folds(a: Float64Array, b: Float64Array): boolean {
+  const L = a.length;
+  const p = new Float64Array(L);
+  for (let i = 0; i < L; i++) p[i] = (a[i] + b[i]) / 2;
+  for (let i = 0; i < L; i += 2) {
+    const ax = p[i];
+    const ay = p[i + 1];
+    const ux = p[(i + 2) % L] - ax;
+    const uy = p[(i + 3) % L] - ay;
+    // every edge not adjacent to this one, once
+    for (let j = i + 4; j < L - (i ? 0 : 2); j += 2) {
+      const cx = p[j];
+      const cy = p[j + 1];
+      const vx = p[(j + 2) % L] - cx;
+      const vy = p[(j + 3) % L] - cy;
+      const d1 = ux * (cy - ay) - uy * (cx - ax);
+      const d2 = ux * (cy + vy - ay) - uy * (cx + vx - ax);
+      if (d1 * d2 >= 0) continue;
+      const d3 = vx * (ay - cy) - vy * (ax - cx);
+      const d4 = vx * (ay + uy - cy) - vy * (ax + ux - cx);
+      if (d3 * d4 < 0) return true;
+    }
+  }
+  return false;
+}
+
+// An outer pair at the offset that scores best (res + λ·|θ|/π, direction
+// locked), or the next one that doesn't fold. At 128 points offsets are
+// scored and folds checked on every other point: the cost of 64.
+function outerItem(a: Float64Array, b: Float64Array): PlanItem {
+  const n = a.length / 2;
+  const k = n > 64 ? 2 : 1;
+  const half = (p: Float64Array, o: number): Float64Array =>
+    k > 1 ? p.filter((_, i) => (i >> 1) % 2 === o) : p;
+  const as = half(a, 0);
+  const ca = centroid(as);
+  const bs = [half(b, 0), half(b, 1)];
+  const cbs = bs.map(centroid);
+  const offs: number[][] = [];
+  for (let off = 0; off < n; off++) {
+    const j = off % k;
+    const s = procrustes(as, rotatePts(bs[j], (off - j) / k), ca, cbs[j]);
+    offs.push([off, s.res + (REGION_LAMBDA * Math.abs(s.theta)) / Math.PI]);
+  }
+  offs.sort((x, y) => x[1] - y[1]);
+  let best: PlanItem | undefined;
+  for (const [off, score] of offs.slice(0, FOLD_TRIES)) {
+    if (score > offs[0][1] + FOLD_SLACK) break;
+    // (not closed: the offset is forced, no search)
+    const it = makeItem(a, rotatePts(b, off), false, false, false, REGION_LAMBDA);
+    it.closed = true;
+    best ??= it;
+    if (!folds(half(it.aC, 0), half(it.bT, 0))) return it;
+  }
+  return best as PlanItem;
+}
 
 // The outer (index into subs) whose surface a hole pierces: the smallest
 // outer containing points OF the hole's contour (majority of three). Not its
@@ -378,6 +480,20 @@ function piecesOf(subs: readonly Sampled[]): Pieces {
   return { outers: idx.map((k) => subs[k].pts), holes };
 }
 
+// Inserts the midpoint of every edge: a 64-point contour against 128.
+function doubled(p: Float64Array): Float64Array {
+  const m = p.length;
+  const q = new Float64Array(2 * m);
+  for (let i = 0; i < m; i += 2) {
+    const j = (i + 2) % m;
+    q[2 * i] = p[i];
+    q[2 * i + 1] = p[i + 1];
+    q[2 * i + 2] = (p[i] + p[j]) / 2;
+    q[2 * i + 3] = (p[i + 1] + p[j + 1]) / 2;
+  }
+  return q;
+}
+
 /** Region plan: outers ↔ outers (holed contours never duplicated), holes ↔
  *  overlapping holes of the paired outer, direction locked; whatever has no
  *  partner collapses/grows without ever breaking the nesting (rules above).
@@ -386,9 +502,12 @@ export function buildRegionPlan(
   srcSubs: readonly Sampled[],
   dstSubs: readonly Sampled[],
 ): MorphPlan {
-  const n = srcSubs[0].pts.length / 2;
-  const A = piecesOf(srcSubs);
-  const B = piecesOf(dstSubs);
+  // one N per plan: the coarse side (if any) is doubled, losing nothing
+  const n = Math.max(srcSubs[0].pts.length, dstSubs[0].pts.length) / 2;
+  const fit = (s: readonly Sampled[]): readonly Sampled[] =>
+    s[0].pts.length / 2 < n ? s.map((c) => ({ ...c, pts: doubled(c.pts) })) : s;
+  const A = piecesOf(fit(srcSubs));
+  const B = piecesOf(fit(dstSubs));
   if (A.outers.length === 0 || B.outers.length === 0)
     throw new Error("morphicons: region has no outer contour");
 
@@ -423,7 +542,7 @@ export function buildRegionPlan(
       );
       continue;
     }
-    const it = makeItem(A.outers[i], B.outers[j], true, true, false, REGION_LAMBDA);
+    const it = outerItem(A.outers[i], B.outers[j]);
     it.hole = false;
     items.push(it);
     // A duplicated contour has no holes (rule 2), so every hole is

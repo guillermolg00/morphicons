@@ -152,7 +152,7 @@
       "name": "region normalizer (morphicons/region standalone; lazy chunk of every binding)",
       "path": "dist/region.js",
       "import": "*",
-      "limit": "11.1 KB",
+      "limit": "11.2 KB",
       "gzip": true
     },
     {
@@ -197,7 +197,7 @@
       "name": "core + dom + react-native (MorphIcon, react/rn/rnsvg external; Metro inlines the region chunk)",
       "path": "dist/react-native.js",
       "import": "*",
-      "limit": "15.4 KB",
+      "limit": "15.8 KB",
       "gzip": true
     },
     {
@@ -217,7 +217,7 @@
       "ignore": [
         "./region.js"
       ],
-      "limit": "9.7 KB",
+      "limit": "9.8 KB",
       "gzip": true
     },
     {

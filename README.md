@@ -484,28 +484,28 @@ CI budget (size-limit, gzip) as an anti-regression tripwire — gates carry ~10%
 | entry | measured | gate |
 |---|---|---|
 | `morphicons` (core) | 6.67 KB | 7 KB |
-| `morphicons/region` (normalizer standalone — the lazy chunk, ~4.9 KB incremental) | 10.66 KB | 11.1 KB |
-| `morphicons/dom` (core + driver) | 8.81 KB | 9.2 KB |
+| `morphicons/region` (normalizer standalone — the lazy chunk, ~5.4 KB incremental) | 11.16 KB | 11.2 KB |
+| `morphicons/dom` (core + driver) | 9.16 KB | 9.2 KB |
 | `morphicons/adapters` (aggregate — grows by design) | 5.11 KB | 5.7 KB |
 | `adapters` › `{ svgToIcon }` alone | 4.17 KB | 4.7 KB |
 | `adapters` › `{ maskTarget }` alone | 0.70 KB | 0.8 KB |
 | `adapters` › `{ canvasTarget }` alone | 0.48 KB | 0.55 KB |
-| `morphicons/react` (all, react external) | 9.70 KB | 10.1 KB |
-| `morphicons/react-native` (all, react/rn/rnsvg external; Metro inlines the region chunk) | 14.95 KB | 15.4 KB |
-| `morphicons/vue` (all, vue external) | 9.71 KB | 10.1 KB |
-| `morphicons/svelte` TS half (all, svelte external) | 9.33 KB | 9.7 KB |
+| `morphicons/react` (all, react external) | 10.05 KB | 10.1 KB |
+| `morphicons/react-native` (all, react/rn/rnsvg external; Metro inlines the region chunk) | 15.73 KB | 15.8 KB |
+| `morphicons/vue` (all, vue external) | 10.07 KB | 10.1 KB |
+| `morphicons/svelte` TS half (all, svelte external) | 9.70 KB | 9.8 KB |
 | `MorphIcon.svelte` (ships as source, consumer-compiled) | 1.29 KB | 1.4 KB |
-| `morphicons/element` (all, `<morph-icon>`) | 10.56 KB | 11 KB |
+| `morphicons/element` (all, `<morph-icon>`) | 10.92 KB | 11 KB |
 | `MorphIcon.astro` (ships as source, consumer-compiled) | 1.61 KB | 1.75 KB |
 
 The adapters entry carries **two kinds of gate**: the aggregate (allowed to grow as adapters are added) and one per named export, which pins each adapter as independently tree-shakeable — if two adapters ever couple, the per-export gate trips in CI. Standalone, `{ svgToIcon }` measures 4.17 KB because auto-fit drags the core's lowering machinery; an app that already imports the core shares that chunk and pays ~1.4 KB incremental (inherited paint for fill-drawn icons, and transforms baked instead of rejected: 0.2 KB of it).
 
-The dom and binding numbers are **static** bytes. The region normalizer (stroke ↔ fill, fill ↔ fill) is a separate chunk loaded with `import()` the first time a morph involves a fill icon — stroke-only apps never download it; its incremental cost over an app that already has the driver is ~4.9 KB gzip. What stays static is only what must work before the chunk exists: +1.7 KB on dom over a stroke-only driver (7.12 KB). Bundlers that don't split (IIFE/UMD, Metro) inline the chunk. See [ADR 0004](docs/adr/0004-regions-are-canon-normalizer-is-lazy.md). That static part:
+The dom and binding numbers are **static** bytes. The region normalizer (stroke ↔ fill, fill ↔ fill) is a separate chunk loaded with `import()` the first time a morph involves a fill icon — stroke-only apps never download it; its incremental cost over an app that already has the driver is ~5.4 KB gzip. What stays static is only what must work before the chunk exists: +2.0 KB on dom over a stroke-only driver (7.12 KB). Bundlers that don't split (IIFE/UMD, Metro) inline the chunk. See [ADR 0004](docs/adr/0004-regions-are-canon-normalizer-is-lazy.md). That static part:
 
-- **Rest without the chunk.** A fill icon renders filled from the server markup on, in the closest look one `<path>` can give it: stroke if an element is stroke-only (a line icon with filled dots), fill + stroke if one is both, evenodd if any element asks for it, translucent duotone layers left out. It upgrades to its exact region when the chunk lands (2,010 Iconify fill icons: 25 rest visibly off before that, IoU < 0.99).
+- **Rest without the chunk.** A fill icon renders filled from the server markup on, in the closest look one `<path>` can give it: stroke when stroke-only elements enclose more than the filled ones (a line icon with filled dots), else fill + stroke if any element is stroked, else fill; always nonzero, with each evenodd element's subpaths wound so its holes stay holes; translucent duotone layers left out. It upgrades to its exact region when the chunk lands (2,010 Iconify fill icons: 14 rest visibly off before that, IoU < 0.99).
 - **Never stuck on the network.** A morph waits at most 100 ms for the chunk. Past that, or on a failed load, it flies a fallback (the old shape shrinks into its centre, the new one grows out of its own), and a load already older than the budget isn't waited for again.
 - **Off the critical path.** A fill icon prefetches the chunk on idle at mount, never under Save-Data (the first morph that needs it loads it then).
-- **Retry after a failure.** The next morph that needs the chunk retries. Chromium keeps a failed `import()` failed for the page's life, so the retry re-runs the chunk as a module script under a fresh module-map key (`#…`: same URL for the server and its cache). A CSP or Trusted Types policy that blocks module scripts blocks the retry too; `setRegionLoader(async () => region)` with a static `import * as region from "morphicons/region"` takes the network out entirely.
+- **Retry after a failure.** The next morph that needs the chunk retries: a plain `import()` first (Safari ≤ 26.1, Firefox 155+ and Chrome 156+ fetch again). Chromium ≤ 155 and Safari 26.2–27 keep a failed `import()` failed for the page's life, so if that fails too the chunk re-runs as a module script under a fresh module-map key (`#…`: same URL for the server and its cache). Chromium and Firefox name the URL in the error; Safari doesn't, so it is read off the loader's source (the bundler's chunk path) and resolved against the driver's own URL. A CSP or Trusted Types policy that blocks module scripts blocks that step; `setRegionLoader(async () => region)` with a static `import * as region from "morphicons/region"` takes the network out entirely.
 
 ## Playground
 

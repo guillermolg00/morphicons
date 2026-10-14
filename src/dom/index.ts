@@ -214,8 +214,9 @@ let regionMod: RegionModule | null = null;
 let regionLoading: Promise<RegionModule> | null = null;
 let regionSince = 0; // when the load in flight started
 let regionFailed = false; // last attempt failed: prefetches wait for a need
-// Chunk URL a failed import() reported. Chromium keeps that import failed
-// for the document's life, so a retry re-runs the chunk under a fresh URL.
+// Chunk URL of a failed import(). Chromium ≤155 and Safari 26.2–27 keep
+// that import failed for the document's life, so a retry that fails again
+// re-runs the chunk under a fresh URL.
 let regionUrl: string | undefined;
 let regionLoader: () => Promise<RegionModule> = () => import("../region/index");
 
@@ -234,8 +235,8 @@ export function setRegionLoader(loader: () => Promise<RegionModule>): void {
 // The chunk as a module script under a fresh module-map key; it registers
 // itself on this key (src/region/index.ts). A fragment is enough (verified
 // on Chromium 152) and the server sees the same URL: CDN cache and signed
-// URLs intact. Under a CSP or Trusted Types policy that blocks it, the
-// retry fails like the import did.
+// URLs intact. Under a CSP or Trusted Types policy that blocks it, it
+// fails like the import did (a throw in the executor rejects).
 const reload = (url: string): Promise<RegionModule> =>
   new Promise((ok, ko) => {
     const s = (document as NonNullable<typeof document>).createElement("script");
@@ -250,28 +251,45 @@ const reload = (url: string): Promise<RegionModule> =>
     (document as NonNullable<typeof document>).head.append(s);
   });
 
+const fromSource = (): string | undefined => {
+  const spec = /import\(\s*["'`]([^"'`]+)/.exec(String(regionLoader))?.[1];
+  const here = /\w+:\/\/[^\s)]+?(?=:\d+:\d+)/.exec(String(new Error().stack))?.[0];
+  try {
+    return spec && new URL(spec, here).href;
+  } catch {
+    // relative, and no URL in the stack
+  }
+};
+
 /** Starts (or joins) loading the region normalizer. Call it early — on
  *  idle, on hover — to keep the first stroke↔fill morph off the network. */
 export function preloadRegion(): Promise<RegionModule> {
   if (regionMod) return Promise.resolve(regionMod);
   if (!regionLoading) {
     regionSince = Date.now();
-    regionLoading = (regionUrl ? reload(regionUrl) : regionLoader()).then(
-      (m) => {
-        regionMod = m;
-        return m;
-      },
-      (e: unknown) => {
-        regionLoading = null; // not cached: a later need retries
-        regionFailed = true;
-        // Chromium/Firefox name the URL; webpack (ChunkLoadError) and Safari
-        // don't, and their next import() fetches again.
-        regionUrl ??= /dynamically imported module:?\s*(\S+)/i.exec(
-          String((e as Error | undefined)?.message),
-        )?.[1];
-        throw e;
-      },
-    );
+    const url = regionUrl;
+    // a plain import() first: browsers that don't cache the failure fetch
+    // again (Safari ≤26.1, Firefox 155+, Chrome 156+, webpack's loader)
+    regionLoading = regionLoader()
+      .catch((e: unknown) => (url ? reload(url) : Promise.reject(e)))
+      .then(
+        (m) => {
+          regionMod = m;
+          return m;
+        },
+        (e: unknown) => {
+          regionLoading = null; // not cached: a later need retries
+          regionFailed = true;
+          // Chromium/Firefox name the URL. Safari doesn't: it is read off the
+          // loader's source (the bundler's chunk path), resolved against this
+          // file's URL (a stack frame). No match (webpack): plain retries.
+          regionUrl ??=
+            /dynamically imported module:?\s*(\S+)/i.exec(
+              String((e as Error | undefined)?.message),
+            )?.[1] ?? fromSource();
+          throw e;
+        },
+      );
   }
   return regionLoading;
 }
@@ -355,8 +373,10 @@ export function restAttrs(icon?: IconInput): Record<string, string> | undefined 
 // own on the second (items carry `half`, see core/interpolate). Only `d`
 // and paint change, so every write contract draws it.
 function popPlan(from: Sampled[], to: Sampled[]): MorphPlan {
-  const n = (from[0] ?? to[0]).pts.length / 2;
+  const n = 64; // sampledOf
   const item = ({ pts, closed }: Sampled, half: 0 | 1) => {
+    // (a region flight may carry 128 points, see region/plan: every other)
+    if (pts.length > 2 * n) pts = pts.filter((_, i) => i % 4 < 2);
     const c = centroid(pts);
     const p = pts.map((v, i) => v - c[i & 1]);
     const z = new Float64Array(2 * n);

@@ -24,6 +24,7 @@
 import { iconToCubics } from "../core/normalize";
 import { type MorphPlan, reversePts } from "../core/plan";
 import {
+  distSeg,
   inside,
   isRegion,
   paintOf,
@@ -125,24 +126,6 @@ function partsOf(input: IconInput, width: number, tol: number): Part[] {
     });
   }
   return parts;
-}
-
-function distSeg(
-  px: number,
-  py: number,
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-): number {
-  const dx = bx - ax;
-  const dy = by - ay;
-  const l2 = dx * dx + dy * dy;
-  let t = l2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
-  t = t < 0 ? 0 : t > 1 ? 1 : t;
-  const ex = px - ax - t * dx;
-  const ey = py - ay - t * dy;
-  return Math.sqrt(ex * ex + ey * ey); // not Math.hypot: ~10× slower in V8/JSC
 }
 
 interface Grid {
