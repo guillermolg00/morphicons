@@ -67,7 +67,7 @@ describe("MorphIcon (Svelte SSR)", () => {
     const html = ssr({ icon: FILL_RING });
     expect(html).toMatch(/<path[^>]* fill="currentColor"/);
     expect(html).toMatch(/<path[^>]* stroke="none"/);
-    expect(html).toMatch(/<path[^>]* fill-rule="evenodd"/);
+    expect(html).toMatch(/<path[^>]* fill-rule="nonzero"/);
     expect(ssr({ icon: ICONS.menu })).not.toMatch(/<path[^>]* fill=/);
     expect(ssr({ from: ICONS.menu, to: FILL_RING, progress: 0.25 })).not.toMatch(
       /<path[^>]* fill=/,

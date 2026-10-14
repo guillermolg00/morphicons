@@ -22,8 +22,15 @@
    Import it directly to normalize ahead of time (module scope or build). */
 
 import { iconToCubics } from "../core/normalize";
-import type { MorphPlan } from "../core/plan";
-import { isRegion, paintOf, REGION_ATTR, translucent } from "../core/region";
+import { type MorphPlan, reversePts } from "../core/plan";
+import {
+  inside,
+  isRegion,
+  paintOf,
+  REGION_ATTR,
+  signedArea,
+  translucent,
+} from "../core/region";
 import type { IconInput, IconNode, IconNodeAttrs, Sampled } from "../core/types";
 import { buildRegionPlan, resampleRegion } from "./plan";
 
@@ -328,39 +335,6 @@ function trace(F: Float32Array, g: Grid): Float64Array[] {
   return loops;
 }
 
-function area(p: Float64Array): number {
-  const n = p.length / 2;
-  let a = 0;
-  for (let i = 0, j = n - 1; i < n; j = i++)
-    a += p[2 * j] * p[2 * i + 1] - p[2 * i] * p[2 * j + 1];
-  return a / 2;
-}
-
-function contains(p: Float64Array, x: number, y: number): boolean {
-  const n = p.length / 2;
-  let c = false;
-  for (let i = 0, j = n - 1; i < n; j = i++) {
-    const yi = p[2 * i + 1];
-    const yj = p[2 * j + 1];
-    if (
-      yi > y !== yj > y &&
-      x < ((p[2 * j] - p[2 * i]) * (y - yi)) / (yj - yi) + p[2 * i]
-    )
-      c = !c;
-  }
-  return c;
-}
-
-function reverse(p: Float64Array): Float64Array {
-  const n = p.length / 2;
-  const o = new Float64Array(2 * n);
-  for (let i = 0; i < n; i++) {
-    o[2 * i] = p[2 * (n - 1 - i)];
-    o[2 * i + 1] = p[2 * (n - 1 - i) + 1];
-  }
-  return o;
-}
-
 // Ramer–Douglas–Peucker over an open run [i0..i1] of a ring.
 function rdp(
   p: Float64Array,
@@ -502,13 +476,13 @@ export function regionContours(
     nx: Math.ceil((maxX - minX + 2 * pad) / h) + 1,
     ny: Math.ceil((maxY - minY + 2 * pad) / h) + 1,
   };
-  const loops = trace(field(parts, g), g).filter((l) => Math.abs(area(l)) > 0.01);
+  const loops = trace(field(parts, g), g).filter((l) => Math.abs(signedArea(l)) > 0.01);
   return loops.map((l) => {
     // Contours neither cross nor touch (see trace): any vertex nests.
     let depth = 0;
-    for (const o of loops) if (o !== l && contains(o, l[0], l[1])) depth++;
+    for (const o of loops) if (o !== l && inside(l[0], l[1], o)) depth++;
     const hole = depth % 2 === 1;
-    const oriented = area(l) > 0 === !hole ? l : reverse(l);
+    const oriented = signedArea(l) > 0 === !hole ? l : reversePts(l);
     return recoverCorners(simplify(oriented, h * 0.08), h);
   });
 }

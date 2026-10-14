@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { svgToIcon } from "../src/adapters/index";
 import { allocOutputs, interpPolar } from "../src/core/interpolate";
+import { iconToCubics } from "../src/core/normalize";
 import type { MorphPlan } from "../src/core/plan";
 import { paintOf, signedArea } from "../src/core/region";
 import type { IconNode } from "../src/core/types";
@@ -723,7 +724,7 @@ describe("driver: region flights", () => {
     m.destroy();
   });
 
-  test("a fill icon at mount paints filled (its own rule) and prefetches on idle", async () => {
+  test("a fill icon at mount paints filled (holes wound) and prefetches on idle", async () => {
     let loads = 0;
     setRegionLoader(async () => {
       loads++;
@@ -741,7 +742,11 @@ describe("driver: region flights", () => {
         ],
       ];
       const m = createMorph(p.el, heroSolid);
-      expect(p.attrs.get("fill-rule")).toBe("evenodd");
+      // nonzero, the evenodd hole wound against its outer
+      expect(p.attrs.get("fill-rule")).toBe("nonzero");
+      const rest = iconToCubics(String(p.attrs.get("d"))).map((c) => c.pts);
+      expect(Math.abs(windingAt(rest, 6, 6))).toBe(1);
+      expect(windingAt(rest, 12, 12)).toBe(0);
       await flush();
       expect(loads).toBe(0); // not on the critical path
       for (const cb of idle) cb();
@@ -813,19 +818,42 @@ describe("pre-chunk rest: the closest single look", () => {
     ],
   ];
 
-  test("SSR / first paint: stroke, both, or fill with evenodd if any element asks", () => {
+  // a filled envelope with a stroked arrow (iconoir mail-out): the arrow
+  // encloses next to nothing, so both, not an outlined envelope
+  const MAIL: IconNode = [
+    ["path", { d: "M2 6h14v13H2z", fill: "currentColor" }],
+    ["path", { d: "M19 9V2m-3 3 3-3 3 3", fill: "none", stroke: "currentColor" }],
+  ];
+  // two overlapping evenodd elements (bi music-note): their union, not a XOR
+  const NOTE: IconNode = [
+    ["path", { d: "M3 3h12v12H3z", "fill-rule": "evenodd", fill: "currentColor" }],
+    ["path", { d: "M9 9h12v12H9z", "fill-rule": "evenodd", fill: "currentColor" }],
+  ];
+  const restWinding = (icon: IconNode, x: number, y: number): number =>
+    windingAt(
+      iconToCubics(canonicalD(icon)).map((c) => c.pts),
+      x,
+      y,
+    );
+
+  test("SSR / first paint: stroke, both or fill, always nonzero", () => {
     expect(restAttrs(WALLET)).toEqual({ fill: "none", stroke: "inherit" });
-    expect(restAttrs(STAR)).toEqual({
-      fill: "currentColor",
-      stroke: "inherit",
-      "fill-rule": "nonzero",
-    });
-    expect(restAttrs(EYE)?.["fill-rule"]).toBe("evenodd");
-    expect(restAttrs(DISC)).toEqual({
-      fill: "currentColor",
-      stroke: "none",
-      "fill-rule": "nonzero",
-    });
+    const both = { fill: "currentColor", stroke: "inherit", "fill-rule": "nonzero" };
+    expect(restAttrs(STAR)).toEqual(both);
+    expect(restAttrs(MAIL)).toEqual(both);
+    const fill = { fill: "currentColor", stroke: "none", "fill-rule": "nonzero" };
+    expect(restAttrs(DISC)).toEqual(fill);
+    expect(restAttrs(EYE)).toEqual(fill);
+    expect(restAttrs(NOTE)).toEqual(fill);
+  });
+
+  test("evenodd elements are wound for nonzero: holes stay holes, overlaps add up", () => {
+    expect(restWinding(EYE, 12, 12)).not.toBe(0); // the pupil, in the iris hole
+    expect(restWinding(EYE, 14.5, 12)).toBe(0); // the hole
+    expect(restWinding(EYE, 19, 12)).not.toBe(0); // the white of the eye
+    expect(restWinding(NOTE, 12, 12)).not.toBe(0); // the overlap paints
+    expect(restWinding(NOTE, 6, 6)).not.toBe(0);
+    expect(restWinding(NOTE, 18, 18)).not.toBe(0);
   });
 
   test("the driver rests on that look until the chunk, then on the region", async () => {

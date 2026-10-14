@@ -6,12 +6,18 @@
 
 import { allocOutputs, interpPolar } from "../core/interpolate";
 import { iconToCubics } from "../core/normalize";
-import { buildPlan, centroid, type MorphPlan, type PlanItem } from "../core/plan";
-import { type Paint, painted, paintOf, solid } from "../core/region";
-import { resampleIcon } from "../core/resample";
+import {
+  buildPlan,
+  centroid,
+  type MorphPlan,
+  type PlanItem,
+  reversePts,
+} from "../core/plan";
+import { inside, type Paint, painted, paintOf, signedArea, solid } from "../core/region";
+import { resampleIcon, resamplePath } from "../core/resample";
 import { cubicsToPathD, serialize } from "../core/serialize";
 import { SPRING_PRESETS, Spring, type SpringPreset } from "../core/spring";
-import type { IconInput, IconNode, Sampled } from "../core/types";
+import type { CubicPath, IconInput, IconNode, Sampled } from "../core/types";
 
 declare function requestAnimationFrame(cb: (ts: number) => void): number;
 declare function cancelAnimationFrame(id: number): void;
@@ -129,11 +135,36 @@ const samples = new WeakMap<IconNode, Sampled[]>();
 const canon = new WeakMap<IconNode, string>();
 const plans = new WeakMap<IconNode, WeakMap<IconNode, MorphPlan>>();
 
+// The cubics of an icon. A fill icon's are wound so that ONE path under
+// nonzero paints every element its own way: each evenodd element's
+// subpaths by nesting depth (outers +, holes −), each nonzero element
+// turned positive as a whole. Overlapping elements then add up (evenodd
+// would cut one out of the other) and translucent layers stay out.
+function cubicsOf(icon: IconInput): CubicPath[] {
+  if (typeof icon === "string" || paintOf(icon) === "stroke") return iconToCubics(icon);
+  return (solid(icon) as IconNode).flatMap((el) => {
+    const ps = iconToCubics([el]);
+    const odd = String(el[1]["fill-rule"]).trim() === "evenodd";
+    let sum = 0;
+    for (const p of ps) sum += signedArea(p.pts);
+    for (const p of ps) {
+      let flip = sum < 0;
+      if (odd) {
+        let pos = true;
+        for (const o of ps) if (o !== p && inside(p.pts[0], p.pts[1], o.pts)) pos = !pos;
+        flip = signedArea(p.pts) > 0 !== pos;
+      }
+      if (flip) p.pts = reversePts(p.pts);
+    }
+    return ps;
+  });
+}
+
 function sampledOf(icon: IconInput): Sampled[] {
   if (typeof icon === "string") return resampleIcon(icon);
   let s = samples.get(icon);
   if (!s) {
-    s = resampleIcon(solid(icon));
+    s = cubicsOf(icon).map((p) => ({ pts: resamplePath(p, 64), closed: p.closed }));
     samples.set(icon, s);
   }
   return s;
@@ -148,7 +179,7 @@ export function canonicalD(icon: IconInput): string {
   if (typeof icon === "string") return icon;
   let d = canon.get(icon);
   if (!d) {
-    d = cubicsToPathD(iconToCubics(solid(icon) as IconNode));
+    d = cubicsToPathD(cubicsOf(icon));
     canon.set(icon, d);
   }
   return d;
@@ -267,35 +298,48 @@ const quietPreload = (): Promise<unknown> =>
  *  budget isn't waited for again. */
 const REGION_WAIT_MS = 100;
 
-// What the element paints: an icon's paint, or both (see restPaint).
+// What the element paints: an icon's paint, or both (see restLook).
 type Look = Paint | "both";
 
 // Paint attributes per look: a stroke icon inherits the <svg>'s stroke.
-const paintAttrs = (p: Look, rule: string): Record<string, string> =>
+// Fills are nonzero, always (cubicsOf winds the evenodd elements for it).
+const paintAttrs = (p: Look): Record<string, string> =>
   p === "stroke"
     ? { fill: "none", stroke: "inherit" }
     : {
         fill: "currentColor",
         stroke: p === "fill" ? "none" : "inherit",
-        "fill-rule": rule,
+        "fill-rule": "nonzero",
       };
 
-// Look + rule a fill icon rests on before the chunk is around. One path
-// can't paint each element its own way; the closest single look on 2,010
-// Iconify fill icons (bench/region-report.md): stroke if an element is
-// stroke-only (a line icon with filled dots: their outline covers them),
-// both if one is filled AND stroked (Iconoir solid: the stroke fattens the
-// fill), else fill; evenodd if any element asks for it (its holes are why).
-function restPaint(icon: IconInput): [Look, string] {
-  if (paintOf(icon) === "stroke") return ["stroke", ""];
-  let look: Look = "fill";
-  let rule = "nonzero";
-  for (const [, a] of solid(icon) as IconNode) {
-    if (String(a["fill-rule"]).trim() === "evenodd") rule = "evenodd";
-    if (painted(a.stroke) && look !== "stroke")
-      look = painted(a.fill) ? "both" : "stroke";
+const looks = new WeakMap<IconNode, Look>();
+
+// The look a fill icon rests on before the chunk is around: one path can't
+// paint each element its own way. Filled elements only: fill. Filled AND
+// stroked ones (Iconoir solid): both, the stroke fattens the fill. A
+// stroke-only element: stroke (a line icon with filled dots: their outline
+// covers them, and `both` would fill the rings), unless it encloses at most
+// ~the filled area (an arrow on a filled envelope, an outline drawn over
+// its own fill): both. 2,010 Iconify fill icons: bench/region-report.md.
+function restLook(icon: IconInput): Look {
+  if (typeof icon === "string" || paintOf(icon) === "stroke") return "stroke";
+  let look = looks.get(icon);
+  if (look) return look;
+  let filled = 0;
+  let enclosed = -1; // area inside stroke-only elements; −1: there are none
+  look = "fill";
+  for (const el of solid(icon) as IconNode) {
+    const s = painted(el[1].stroke);
+    const f = painted(el[1].fill) || (el[1].fill === undefined && !s);
+    if (s) look = "both";
+    let a = 0;
+    for (const p of iconToCubics([el])) a += Math.abs(signedArea(p.pts));
+    if (f) filled += a;
+    else if (s) enclosed = Math.max(enclosed, 0) + a;
   }
-  return [look, rule];
+  if (enclosed > 1.5 * filled) look = "stroke";
+  looks.set(icon, look);
+  return look;
 }
 
 /** The paint attributes a binding renders on the `<path>` with its first
@@ -303,7 +347,7 @@ function restPaint(icon: IconInput): [Look, string] {
  *  None for a stroke icon: it inherits the `<svg>`'s stroke as always. */
 export function restAttrs(icon?: IconInput): Record<string, string> | undefined {
   if (icon === undefined || paintOf(icon) === "stroke") return undefined;
-  return paintAttrs(...restPaint(icon));
+  return paintAttrs(restLook(icon));
 }
 
 // The fallback flight when the region chunk isn't there: the old shape
@@ -360,29 +404,27 @@ export function createMorph(
   let regionFlight = false; // the active plan is a region plan
   let pending: object | null = null; // latest request waiting for the chunk
   let paint: Look = "stroke"; // what the element paints (markup default)
-  let rule = "";
   // Fallback flight (popPlan): items [0, split) are the old shape, painted
   // `popFrom` on the first half; the rest the new one, painted as it rests.
   let split = 0;
-  let popFrom: [Look, string] = ["stroke", ""];
+  let popFrom: Look = "stroke";
 
   // Paint attributes are written only on change, and never for stroke-only
   // use: the element keeps inheriting the <svg>'s stroke as it always did.
-  const paintAs = (p: Look, r = "nonzero"): void => {
-    if (p === paint && (p === "stroke" || r === rule)) return;
-    for (const [k, v] of Object.entries(paintAttrs(p, r))) el.setAttribute(k, v);
+  const paintAs = (p: Look): void => {
+    if (p === paint) return;
+    for (const [k, v] of Object.entries(paintAttrs(p))) el.setAttribute(k, v);
     paint = p;
-    rule = r;
   };
 
   // The at-rest `d` + paint of an icon. A fill icon rests on its region
   // once the normalizer is around (exact union of its elements), else on
-  // its own canonical d in the closest single look (restPaint).
+  // its own canonical d in the closest single look (restLook).
   const paintRest = (ic: IconInput): void => {
     const r =
       regionMod && paintOf(ic) === "fill" ? regionMod.regionOf(ic, strokeWidth) : ic;
     el.setAttribute("d", canonicalD(r));
-    paintAs(...restPaint(r));
+    paintAs(restLook(r));
   };
 
   // A fill icon resting before the chunk: its exact region once `load`
@@ -416,7 +458,7 @@ export function createMorph(
     t = tt;
     interpPolar(p, tt, o);
     const [lo, hi] = shown(tt);
-    if (split) paintAs(...(tt < 0.5 ? popFrom : restPaint(target)));
+    if (split) paintAs(tt < 0.5 ? popFrom : restLook(target));
     el.setAttribute("d", serialize(o.slice(lo, hi), cl.slice(lo, hi)));
   };
 
@@ -474,7 +516,7 @@ export function createMorph(
     if (pop || (!rest && split)) {
       // the fallback, or a fallback flight interrupted: from what is on screen
       const from = snapshot();
-      popFrom = [paint, rule];
+      popFrom = paint;
       plan = popPlan(from, sampledOf(icon));
       split = from.length;
       regionFlight = false;

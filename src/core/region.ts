@@ -54,6 +54,22 @@ export function isRegion(icon: IconInput): boolean {
   return typeof icon !== "string" && icon.length === 1 && REGION_ATTR in icon[0][1];
 }
 
+/** Even-odd point-in-polygon against a closed point cloud. */
+export function inside(px: number, py: number, p: Float64Array): boolean {
+  const n = p.length / 2;
+  let c = false;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const yi = p[2 * i + 1];
+    const yj = p[2 * j + 1];
+    if (
+      yi > py !== yj > py &&
+      px < ((p[2 * j] - p[2 * i]) * (py - yi)) / (yj - yi) + p[2 * i]
+    )
+      c = !c;
+  }
+  return c;
+}
+
 /** Shoelace signed area of a closed point cloud (SVG axes: y down). */
 export function signedArea(p: Float64Array): number {
   const n = p.length / 2;

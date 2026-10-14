@@ -64,7 +64,7 @@ describe("MorphIcon (SSR)", () => {
     const html = renderToString(<MorphIcon icon={FILL_RING} />);
     expect(html).toMatch(/<path[^>]* fill="currentColor"/);
     expect(html).toMatch(/<path[^>]* stroke="none"/);
-    expect(html).toMatch(/<path[^>]* fill-rule="evenodd"/);
+    expect(html).toMatch(/<path[^>]* fill-rule="nonzero"/);
     expect(renderToString(<MorphIcon icon={ICONS.menu} />)).toContain(
       `<path d="${ICONS.menu}"></path>`,
     );

@@ -14,7 +14,7 @@ import {
   rotatePts,
   SURJ_MAX,
 } from "../core/plan";
-import { signedArea } from "../core/region";
+import { inside, signedArea } from "../core/region";
 import { resamplePath } from "../core/resample";
 import type { IconInput, Sampled } from "../core/types";
 
@@ -68,22 +68,6 @@ export function resampleRegion(icon: IconInput, N = 64): Sampled[] {
 // a star, a house upside down. Icons stand upright, so a spin has to buy a
 // real residual gain (a moon drawn rotated keeps its 90°: gain ≈ 0.4).
 const REGION_LAMBDA = 0.3;
-
-/** Even-odd point-in-polygon against a closed sampled cloud. */
-function inside(px: number, py: number, p: Float64Array): boolean {
-  const n = p.length / 2;
-  let c = false;
-  for (let i = 0, j = n - 1; i < n; j = i++) {
-    const yi = p[2 * i + 1];
-    const yj = p[2 * j + 1];
-    if (
-      yi > py !== yj > py &&
-      px < ((p[2 * j] - p[2 * i]) * (py - yi)) / (yj - yi) + p[2 * i]
-    )
-      c = !c;
-  }
-  return c;
-}
 
 // The outer (index into subs) whose surface a hole pierces: the smallest
 // outer containing points OF the hole's contour (majority of three). Not its
