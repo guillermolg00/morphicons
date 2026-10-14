@@ -10,7 +10,13 @@ import { allocOutputs, interpPolar } from "../src/core/interpolate";
 import type { MorphPlan } from "../src/core/plan";
 import { paintOf, signedArea } from "../src/core/region";
 import type { IconNode } from "../src/core/types";
-import { createMorph, preloadRegion, setRegionLoader } from "../src/dom/index";
+import {
+  canonicalD,
+  createMorph,
+  preloadRegion,
+  restAttrs,
+  setRegionLoader,
+} from "../src/dom/index";
 import * as region from "../src/region/index";
 import {
   buildRegionPlan,
@@ -170,6 +176,23 @@ describe("normalizer (toRegion)", () => {
     expect(paintOf(LUCIDE_X)).toBe("stroke");
     expect(paintOf(MATERIAL_CLOSE)).toBe("fill");
     expect(paintOf("M0 0h4")).toBe("stroke");
+  });
+
+  test("a shape touching its hole's edge is still an outer (MDI camera-enhance lens)", () => {
+    // the sparkle's top tip lies on the lens hole: nesting by that one
+    // vertex was a coin flip, and the sparkle came out wound as a hole
+    const lens: IconNode = [
+      [
+        "path",
+        {
+          fill: "currentColor",
+          d: "m12 10l-.94 2.06L9 13l2.06.94L12 16l.94-2.06L15 13l-2.06-.94zM12 8a5 5 0 0 0-5 5a5 5 0 0 0 5 5a5 5 0 0 0 5-5a5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3a3 3 0 0 1 3-3a3 3 0 0 1 3 3a3 3 0 0 1-3 3",
+        },
+      ],
+    ];
+    const cs = regionContours(lens);
+    for (const [x, y] of GRID) expect(windingAt(cs, x, y)).toBeGreaterThanOrEqual(0);
+    expect(windingAt(cs, 12.01, 13.01)).toBe(1); // the sparkle paints
   });
 
   test("a mixed icon (filled shape + stroked mark) unions both", () => {
@@ -447,7 +470,7 @@ describe("driver: region flights", () => {
     m.destroy();
   });
 
-  test("a failed chunk load degrades to an instant jump, and a later need retries", async () => {
+  test("a failed chunk load flies the fallback, and a later need retries", async () => {
     let attempt = 0;
     setRegionLoader(() =>
       ++attempt === 1 ? Promise.reject(new Error("offline")) : Promise.resolve(region),
@@ -456,11 +479,12 @@ describe("driver: region flights", () => {
     const m = createMorph(p.el, LUCIDE_X);
     m.morphTo(DISC);
     await flush();
-    expect(pendingFrames()).toBe(0);
-    expect(p.attrs.get("fill")).toBe("currentColor"); // jumped to the fill icon
-    expect(attempt).toBe(1); // the jump did not fire a second request
+    expect(pendingFrames()).toBeGreaterThan(0); // animates, doesn't jump
+    settleAll();
+    expect(p.attrs.get("fill")).toBe("currentColor"); // rests on the fill icon
+    expect(attempt).toBe(1); // the fallback did not fire a second request
     createMorph(fake().el, DISC).destroy(); // nor does a fill mount (no storm)
-    await flush();
+    await new Promise((r) => setTimeout(r, 250)); // past the idle prefetch
     expect(attempt).toBe(1);
     m.morphTo(LUCIDE_X);
     await flush();
@@ -469,7 +493,7 @@ describe("driver: region flights", () => {
     m.destroy();
   });
 
-  test("a chunk slower than the budget: jump now, rest upgrades when it lands", async () => {
+  test("a chunk slower than the budget: the fallback flies now, rest upgrades when it lands", async () => {
     const d = deferred();
     setRegionLoader(() => d.promise);
     const p = fake();
@@ -478,19 +502,112 @@ describe("driver: region flights", () => {
     m.morphTo(DISC);
     expect(p.attrs.get("d")).toBe(before); // within the budget: still waiting
     await new Promise((r) => setTimeout(r, 130)); // hang past REGION_WAIT_MS
-    expect(pendingFrames()).toBe(0);
-    expect(p.attrs.get("fill")).toBe("currentColor"); // jumped, not stuck
-    const jumped = p.attrs.get("d");
-    expect(jumped).not.toBe(before);
+    expect(pendingFrames()).toBeGreaterThan(0); // flying the fallback, not stuck
+    settleAll();
+    expect(p.attrs.get("fill")).toBe("currentColor");
+    const landed = p.attrs.get("d");
+    expect(landed).not.toBe(before);
     d.resolve(region); // arrives late
     await flush();
     await flush();
     expect(pendingFrames()).toBe(0); // the stale flight is NOT replayed
-    expect(p.attrs.get("d")).not.toBe(jumped); // rest upgraded to the exact region
+    expect(p.attrs.get("d")).not.toBe(landed); // rest upgraded to the exact region
     m.morphTo(LUCIDE_X); // the next morph flies
     expect(pendingFrames()).toBeGreaterThan(0);
     settleAll();
     m.destroy();
+  });
+
+  test("a load already older than the budget isn't waited for again", async () => {
+    const d = deferred();
+    setRegionLoader(() => d.promise);
+    const p = fake();
+    const m = createMorph(p.el, LUCIDE_X);
+    m.morphTo(DISC);
+    await new Promise((r) => setTimeout(r, 130)); // the hang blew the budget
+    settleAll();
+    m.morphTo(LUCIDE_X);
+    expect(pendingFrames()).toBeGreaterThan(0); // flies at once, no 100 ms wait
+    settleAll();
+    expect(p.attrs.get("stroke")).toBe("inherit");
+    m.destroy();
+  });
+
+  test("the fallback shrinks the old shape, then grows the new one in its own paint", async () => {
+    setRegionLoader(() => Promise.reject(new Error("offline")));
+    const p = fake();
+    const m = createMorph(p.el, LUCIDE_X);
+    m.seek(DISC, 0.25);
+    await flush();
+    // first half: lucide x (2 strokes), stroke paint, shrinking
+    expect((p.attrs.get("d") ?? "").match(/M/g)?.length).toBe(2);
+    expect(p.attrs.get("fill")).toBeUndefined(); // still the svg's stroke
+    m.seek(DISC, 0.75);
+    // second half: the disc (1 contour), its fill paint
+    expect((p.attrs.get("d") ?? "").match(/M/g)?.length).toBe(1);
+    expect(p.attrs.get("fill")).toBe("currentColor");
+    m.seek(DISC, 0.5); // the crossover: both sides collapsed to their centroids
+    const xs = (p.attrs.get("d") ?? "").match(/-?\d+(\.\d+)?/g)?.map(Number) ?? [];
+    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThan(0.01);
+    // interrupted mid-fallback: it chains from what is on screen
+    m.morphTo(PAUSE);
+    frame(16);
+    for (const v of (p.attrs.get("d") ?? "").match(/-?\d+(\.\d+)?/g) ?? [])
+      expect(Number.isFinite(Number(v))).toBe(true);
+    settleAll();
+    expect(p.attrs.get("fill")).toBe("currentColor");
+    expect((p.attrs.get("d") ?? "").match(/M/g)?.length).toBe(2); // the two bars
+    m.destroy();
+  });
+
+  test("after a failed import() whose URL is cached as failed, the retry re-runs the chunk under a fresh module-map key", async () => {
+    const url = "https://cdn.example/assets/region-abc.js";
+    let imports = 0;
+    setRegionLoader(() => {
+      imports++;
+      return Promise.reject(
+        new TypeError(`Failed to fetch dynamically imported module: ${url}`),
+      );
+    });
+    const scripts: Array<{ type: string; src: string; onload: (() => void) | null }> = [];
+    const doc = (globalThis as unknown as { document: unknown }).document as {
+      createElement: unknown;
+      head: { append: unknown };
+    };
+    const create = doc.createElement;
+    const append = doc.head.append;
+    doc.createElement = () => ({ type: "", src: "", onload: null, onerror: null });
+    doc.head.append = (s: (typeof scripts)[number]) => scripts.push(s);
+    try {
+      const p = fake();
+      const m = createMorph(p.el, LUCIDE_X);
+      m.morphTo(DISC); // import() fails → fallback
+      await flush();
+      settleAll();
+      expect(imports).toBe(1);
+      expect(scripts.length).toBe(0); // no second request in the same instant
+      m.morphTo(LUCIDE_X); // the next need retries — not through import()
+      await flush();
+      expect(imports).toBe(1);
+      expect(scripts.length).toBe(1);
+      expect(scripts[0].type).toBe("module");
+      // same URL for the server (CDN cache, signed URLs), new key for the
+      // module map: Chromium 152 refetches a fragment-only variant
+      expect(scripts[0].src).toMatch(
+        /^https:\/\/cdn\.example\/assets\/region-abc\.js#\d+$/,
+      );
+      scripts[0].onload?.(); // the chunk ran: it registered its hooks
+      await flush();
+      settleAll();
+      m.morphTo(DISC);
+      expect(pendingFrames()).toBeGreaterThan(0); // flies a region plan now
+      settleAll();
+      expect(p.attrs.get("fill")).toBe("currentColor");
+      m.destroy();
+    } finally {
+      doc.createElement = create;
+      doc.head.append = append;
+    }
   });
 
   test("a superseded request is dropped when the chunk arrives late", async () => {
@@ -525,23 +642,170 @@ describe("driver: region flights", () => {
     m.destroy();
   });
 
-  test("a fill icon at mount paints filled (its own rule) and prefetches", async () => {
+  test("a fill icon at mount paints filled (its own rule) and prefetches on idle", async () => {
     let loads = 0;
     setRegionLoader(async () => {
       loads++;
       return region;
     });
+    const idle: Array<() => void> = [];
+    const g = globalThis as { requestIdleCallback?: (cb: () => void) => void };
+    g.requestIdleCallback = (cb) => idle.push(cb);
+    try {
+      const p = fake();
+      const heroSolid: IconNode = [
+        [
+          "path",
+          { d: "M4 4h16v16H4zM8 8h8v8H8z", "fill-rule": "evenodd", fill: "currentColor" },
+        ],
+      ];
+      const m = createMorph(p.el, heroSolid);
+      expect(p.attrs.get("fill-rule")).toBe("evenodd");
+      await flush();
+      expect(loads).toBe(0); // not on the critical path
+      for (const cb of idle) cb();
+      await flush();
+      expect(loads).toBe(1);
+      await flush();
+      // and the icon now rests on its exact region
+      expect(p.attrs.get("d")).toBe(canonicalD(region.regionOf(heroSolid, 2)));
+      expect(p.attrs.get("fill-rule")).toBe("nonzero");
+      m.destroy();
+    } finally {
+      delete g.requestIdleCallback;
+    }
+  });
+
+  test("Save-Data: no prefetch; the first morph that needs the chunk loads it", async () => {
+    let loads = 0;
+    setRegionLoader(async () => {
+      loads++;
+      return region;
+    });
+    const nav = globalThis.navigator as { connection?: { saveData: boolean } };
+    nav.connection = { saveData: true };
+    try {
+      const m = createMorph(fake().el, DISC);
+      await new Promise((r) => setTimeout(r, 250));
+      expect(loads).toBe(0);
+      m.morphTo(LUCIDE_X);
+      await flush();
+      expect(loads).toBe(1);
+      settleAll();
+      m.destroy();
+    } finally {
+      delete nav.connection;
+    }
+  });
+});
+
+describe("pre-chunk rest: the closest single look", () => {
+  // a line icon with a filled dot (Iconoir wallet): the dot's outline covers it
+  const WALLET: IconNode = [
+    ["path", { d: "M3 7h18v13H3z", fill: "none", stroke: "currentColor" }],
+    [
+      "circle",
+      { cx: 16.5, cy: 13.5, r: 0.5, fill: "currentColor", stroke: "currentColor" },
+    ],
+  ];
+  // filled and stroked (Iconoir solid): the stroke fattens the fill
+  const STAR: IconNode = [
+    [
+      "path",
+      {
+        d: "M12 3l3 6 6 1-4.5 4 1 6-5.5-3-5.5 3 1-6L3 10l6-1z",
+        fill: "currentColor",
+        stroke: "currentColor",
+      },
+    ],
+  ];
+  // a pupil (nonzero) inside an evenodd ring (Heroicons eye-16-solid)
+  const EYE: IconNode = [
+    ["circle", { cx: 12, cy: 12, r: 2, fill: "currentColor" }],
+    [
+      "path",
+      {
+        d: "M2 12a10 7 0 1 0 20 0a10 7 0 1 0-20 0zM8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0z",
+        "fill-rule": "evenodd",
+        fill: "currentColor",
+      },
+    ],
+  ];
+
+  test("SSR / first paint: stroke, both, or fill with evenodd if any element asks", () => {
+    expect(restAttrs(WALLET)).toEqual({ fill: "none", stroke: "inherit" });
+    expect(restAttrs(STAR)).toEqual({
+      fill: "currentColor",
+      stroke: "inherit",
+      "fill-rule": "nonzero",
+    });
+    expect(restAttrs(EYE)?.["fill-rule"]).toBe("evenodd");
+    expect(restAttrs(DISC)).toEqual({
+      fill: "currentColor",
+      stroke: "none",
+      "fill-rule": "nonzero",
+    });
+  });
+
+  test("the driver rests on that look until the chunk, then on the region", async () => {
+    const d = deferred();
+    setRegionLoader(() => d.promise as Promise<typeof region>);
     const p = fake();
-    const heroSolid: IconNode = [
-      [
-        "path",
-        { d: "M4 4h16v16H4zM8 8h8v8H8z", "fill-rule": "evenodd", fill: "currentColor" },
-      ],
-    ];
-    const m = createMorph(p.el, heroSolid);
-    expect(p.attrs.get("fill-rule")).toBe("evenodd");
+    const m = createMorph(p.el, WALLET);
+    expect(p.attrs.get("fill")).toBeUndefined(); // the <svg>'s stroke, as markup
+    m.set(STAR);
+    expect(p.attrs.get("stroke")).toBe("inherit");
+    expect(p.attrs.get("fill")).toBe("currentColor");
+    d.resolve(region);
     await flush();
-    expect(loads).toBe(1);
+    await flush();
+    expect(p.attrs.get("stroke")).toBe("none");
+    expect(p.attrs.get("d")).toBe(canonicalD(region.regionOf(STAR, 2)));
     m.destroy();
+  });
+
+  test("an icon mounted once the chunk is around rests on its region at once", async () => {
+    await preloadRegion();
+    const p = fake();
+    createMorph(p.el, EYE).destroy();
+    expect(p.attrs.get("d")).toBe(canonicalD(region.regionOf(EYE, 2)));
+    expect(p.attrs.get("fill-rule")).toBe("nonzero");
+  });
+});
+
+describe("duotone and caches", () => {
+  const DUOTONE: IconNode = [
+    ["path", { d: "M4 4h16v16H4z", opacity: "0.2", fill: "currentColor" }],
+    ["path", { d: "M8 8h8v8H8z", fill: "currentColor" }],
+  ];
+
+  test("a duotone icon rests without its translucent layer, before and after the chunk", async () => {
+    // one subpath: the 0.2 layer is not painted opaque under the solid one
+    expect(canonicalD(DUOTONE).match(/M/g)?.length).toBe(1);
+    expect(restAttrs(DUOTONE)?.fill).toBe("currentColor");
+    await preloadRegion();
+    const p = fake();
+    const m = createMorph(p.el, PLAY);
+    m.morphTo(DUOTONE);
+    settleAll();
+    const xs = (p.attrs.get("d") ?? "").match(/-?\d+(\.\d+)?/g)?.map(Number) ?? [];
+    expect(Math.min(...xs)).toBeGreaterThan(7.9); // the 8..16 square only
+    expect(Math.max(...xs)).toBeLessThan(16.1);
+    m.destroy();
+  });
+
+  test("icons rebuilt on every render reuse one region, its samples and its plans", () => {
+    const make = (): IconNode => [
+      ["circle", { cx: 12, cy: 12, r: 9, fill: "currentColor" }],
+    ];
+    const a = make();
+    const b = make();
+    expect(a).not.toBe(b);
+    expect(region.regionOf(a, 2)).toBe(region.regionOf(b, 2));
+    expect(region.regionPlan(a, PLAY, 2)).toBe(region.regionPlan(b, PLAY, 2));
+    // a stroke icon keys by width too
+    const x = (): IconNode => LUCIDE_X.map(([t, at]) => [t, { ...at }] as const);
+    expect(region.regionOf(x(), 2)).toBe(region.regionOf(x(), 2));
+    expect(region.regionOf(x(), 2)).not.toBe(region.regionOf(x(), 3));
   });
 });

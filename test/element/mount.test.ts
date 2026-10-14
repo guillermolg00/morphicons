@@ -10,6 +10,7 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import type { IconInput } from "../../src/core/types";
+import { preloadRegion } from "../../src/dom/index";
 import { defineMorphIcon, MorphIconElement } from "../../src/element/index";
 import { frame, pendingFrames, registerDom, settleAll } from "../client-dom";
 import { FILL_DISC, ICONS } from "../helpers";
@@ -322,6 +323,22 @@ describe("MorphIcon (custom element verbatim adoption: zero d writes)", () => {
 });
 
 describe("MorphIcon (custom element SSR adoption)", () => {
+  test("a server-filled path is adopted as a fill icon: morphing to a stroke icon restores the stroke", async () => {
+    await preloadRegion();
+    const host = document.createElement("div");
+    host.innerHTML =
+      `<morph-icon>${SVG_OPEN}<path d="M4 4h16v16H4zM8 8h8v8H8z" fill="currentColor" ` +
+      `stroke="none" fill-rule="evenodd"></path></svg></morph-icon>`;
+    document.body.appendChild(host);
+    cleanups.push(() => host.remove());
+    const path = host.querySelector("path") as Element;
+    (host.querySelector("morph-icon") as MorphIconElement).morphTo(ICONS.x);
+    settleAll();
+    expect(path.getAttribute("d")).toBe(ICONS.x);
+    expect(path.getAttribute("fill")).toBe("none");
+    expect(path.getAttribute("stroke")).toBe("inherit");
+  });
+
   test("pre-rendered markup is adopted verbatim and morphs away from it", () => {
     const host = document.createElement("div");
     host.innerHTML =

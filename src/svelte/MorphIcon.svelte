@@ -12,6 +12,7 @@
 import { onMount, untrack } from "svelte";
 import {
   computeInitialD,
+  computeInitialPaint,
   createController,
   type IconInput,
   type MorphIconProps,
@@ -37,6 +38,7 @@ let {
 // svelte-ignore state_referenced_locally — mount-time value on purpose: the
 // initial d must stay a constant so Svelte never rewrites the attribute.
 const initialD = computeInitialD({ icon, from, to, progress });
+const initialPaint = computeInitialPaint({ icon, from, to, progress });
 
 let pathEl: SVGPathElement | undefined = $state();
 // svelte-ignore state_referenced_locally — init-time values on purpose: they
@@ -84,5 +86,5 @@ const sw = $derived(
   {...rest}
 >
   {#if label}<title>{label}</title>{/if}
-  <path bind:this={pathEl} d={initialD} />
+  <path bind:this={pathEl} d={initialD} {...initialPaint} />
 </svg>

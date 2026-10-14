@@ -6,8 +6,8 @@
 
 import { allocOutputs, interpPolar } from "../core/interpolate";
 import { iconToCubics } from "../core/normalize";
-import { buildPlan, type MorphPlan } from "../core/plan";
-import { isRegion, type Paint, paintOf } from "../core/region";
+import { buildPlan, centroid, type MorphPlan, type PlanItem } from "../core/plan";
+import { type Paint, painted, paintOf, solid } from "../core/region";
 import { resampleIcon } from "../core/resample";
 import { cubicsToPathD, serialize } from "../core/serialize";
 import { SPRING_PRESETS, Spring, type SpringPreset } from "../core/spring";
@@ -18,6 +18,19 @@ declare function cancelAnimationFrame(id: number): void;
 declare function setTimeout(cb: () => void, ms: number): unknown;
 declare function clearTimeout(id: unknown): void;
 declare const matchMedia: ((query: string) => { matches: boolean }) | undefined;
+declare const requestIdleCallback:
+  | ((cb: () => void, o: { timeout: number }) => void)
+  | undefined;
+declare const navigator: { connection?: { saveData?: boolean } } | undefined;
+interface ScriptEl {
+  type: string;
+  src: string;
+  onload: (() => void) | null;
+  onerror: (() => void) | null;
+}
+declare const document:
+  | { createElement(tag: "script"): ScriptEl; head: { append(el: ScriptEl): void } }
+  | undefined;
 
 /** Target element, structurally typed: any object with setAttribute works
  *  (a real SVGPathElement, or a fake in tests). */
@@ -120,7 +133,7 @@ function sampledOf(icon: IconInput): Sampled[] {
   if (typeof icon === "string") return resampleIcon(icon);
   let s = samples.get(icon);
   if (!s) {
-    s = resampleIcon(icon);
+    s = resampleIcon(solid(icon));
     samples.set(icon, s);
   }
   return s;
@@ -129,12 +142,13 @@ function sampledOf(icon: IconInput): Sampled[] {
 /** Canonical `d` of an icon: the input string verbatim, or the real cubics
  *  quantized to 4 decimals (the at-rest snap; engine-stable bytes so SSR
  *  hydration matches, see fmtCanon in core/serialize). Exported because it
- *  is what a binding renders at SSR/rest before any runtime exists. */
+ *  is what a binding renders at SSR/rest before any runtime exists. A fill
+ *  icon's translucent duotone layer is left out (one path can't paint it). */
 export function canonicalD(icon: IconInput): string {
   if (typeof icon === "string") return icon;
   let d = canon.get(icon);
   if (!d) {
-    d = cubicsToPathD(iconToCubics(icon));
+    d = cubicsToPathD(iconToCubics(solid(icon) as IconNode));
     canon.set(icon, d);
   }
   return d;
@@ -167,7 +181,11 @@ function planBetween(src: IconInput, dst: IconInput): MorphPlan {
 type RegionModule = typeof import("../region/index");
 let regionMod: RegionModule | null = null;
 let regionLoading: Promise<RegionModule> | null = null;
+let regionSince = 0; // when the load in flight started
 let regionFailed = false; // last attempt failed: prefetches wait for a need
+// Chunk URL a failed import() reported. Chromium keeps that import failed
+// for the document's life, so a retry re-runs the chunk under a fresh URL.
+let regionUrl: string | undefined;
 let regionLoader: () => Promise<RegionModule> = () => import("../region/index");
 
 /** Replaces how the region normalizer is loaded (default: dynamic import of
@@ -179,46 +197,139 @@ export function setRegionLoader(loader: () => Promise<RegionModule>): void {
   regionLoading = null;
   regionMod = null;
   regionFailed = false;
+  regionUrl = undefined;
 }
+
+// The chunk as a module script under a fresh module-map key; it registers
+// itself on this key (src/region/index.ts). A fragment is enough (verified
+// on Chromium 152) and the server sees the same URL: CDN cache and signed
+// URLs intact. Under a CSP or Trusted Types policy that blocks it, the
+// retry fails like the import did.
+const reload = (url: string): Promise<RegionModule> =>
+  new Promise((ok, ko) => {
+    const s = (document as NonNullable<typeof document>).createElement("script");
+    s.type = "module";
+    s.onload = s.onerror = () => {
+      const m = (globalThis as Record<symbol, RegionModule | undefined>)[
+        Symbol.for("morphicons.region")
+      ];
+      m ? ok(m) : ko(new Error(url));
+    };
+    s.src = `${url}#${Date.now()}`;
+    (document as NonNullable<typeof document>).head.append(s);
+  });
 
 /** Starts (or joins) loading the region normalizer. Call it early — on
  *  idle, on hover — to keep the first stroke↔fill morph off the network. */
 export function preloadRegion(): Promise<RegionModule> {
   if (regionMod) return Promise.resolve(regionMod);
-  regionLoading ??= regionLoader().then(
-    (m) => {
-      regionMod = m;
-      return m;
-    },
-    (e: unknown) => {
-      regionLoading = null; // not cached: a later need retries
-      regionFailed = true;
-      throw e;
-    },
-  );
+  if (!regionLoading) {
+    regionSince = Date.now();
+    regionLoading = (regionUrl ? reload(regionUrl) : regionLoader()).then(
+      (m) => {
+        regionMod = m;
+        return m;
+      },
+      (e: unknown) => {
+        regionLoading = null; // not cached: a later need retries
+        regionFailed = true;
+        // Chromium/Firefox name the URL; webpack (ChunkLoadError) and Safari
+        // don't, and their next import() fetches again.
+        regionUrl ??= /dynamically imported module:?\s*(\S+)/i.exec(
+          String((e as Error | undefined)?.message),
+        )?.[1];
+        throw e;
+      },
+    );
+  }
   return regionLoading;
 }
 
-// Prefetch (mount, rest upgrades). After a failure it waits for the next
-// morph that NEEDS the chunk: a jump caused by the failure must not fire a
-// second request in the same instant.
-const quietPreload = (): void => {
-  if (!regionFailed) preloadRegion().catch(() => {});
-};
+// Prefetch when a fill icon mounts: on idle, off the critical path, and not
+// at all under Save-Data (never settles: the first morph loads it). After a
+// failure it waits for the next morph that NEEDS the chunk: a fallback
+// caused by the failure must not fire a second request in the same instant.
+const quietPreload = (): Promise<unknown> =>
+  new Promise((ok, ko) => {
+    if (typeof navigator === "undefined" ? false : navigator.connection?.saveData) return;
+    const go = (): void => {
+      regionFailed ? ko() : preloadRegion().then(ok, ko);
+    };
+    typeof requestIdleCallback === "function"
+      ? requestIdleCallback(go, { timeout: 2000 })
+      : setTimeout(go, 200);
+  });
 
-/** How long a morph waits for the region chunk before giving up on the
- *  flight and jumping (RAIL's 100 ms response budget). A slow, failed or
- *  hanging load never leaves the icon stuck on the old shape; the load goes
- *  on in the background and the next morph flies. */
+/** How long a morph waits for the region chunk before flying the fallback
+ *  (RAIL's 100 ms response budget). A slow, failed or hanging load never
+ *  leaves the icon stuck on the old shape; the load goes on in the
+ *  background and the next morph flies. A load already older than the
+ *  budget isn't waited for again. */
 const REGION_WAIT_MS = 100;
 
-// Fill rule an unnormalized fill icon renders with at rest: evenodd only if
-// every element asks for it (Heroicons solid), else nonzero (Material).
-function restRule(icon: IconInput): string {
-  if (typeof icon === "string") return "nonzero";
-  return icon.every(([, a]) => String(a["fill-rule"] ?? "").trim() === "evenodd")
-    ? "evenodd"
-    : "nonzero";
+// What the element paints: an icon's paint, or both (see restPaint).
+type Look = Paint | "both";
+
+// Paint attributes per look: a stroke icon inherits the <svg>'s stroke.
+const paintAttrs = (p: Look, rule: string): Record<string, string> =>
+  p === "stroke"
+    ? { fill: "none", stroke: "inherit" }
+    : {
+        fill: "currentColor",
+        stroke: p === "fill" ? "none" : "inherit",
+        "fill-rule": rule,
+      };
+
+// Look + rule a fill icon rests on before the chunk is around. One path
+// can't paint each element its own way; the closest single look on 2,010
+// Iconify fill icons (bench/region-report.md): stroke if an element is
+// stroke-only (a line icon with filled dots: their outline covers them),
+// both if one is filled AND stroked (Iconoir solid: the stroke fattens the
+// fill), else fill; evenodd if any element asks for it (its holes are why).
+function restPaint(icon: IconInput): [Look, string] {
+  if (paintOf(icon) === "stroke") return ["stroke", ""];
+  let look: Look = "fill";
+  let rule = "nonzero";
+  for (const [, a] of solid(icon) as IconNode) {
+    if (String(a["fill-rule"]).trim() === "evenodd") rule = "evenodd";
+    if (painted(a.stroke) && look !== "stroke")
+      look = painted(a.fill) ? "both" : "stroke";
+  }
+  return [look, rule];
+}
+
+/** The paint attributes a binding renders on the `<path>` with its first
+ *  icon (SSR included), so a fill icon is filled before any script runs.
+ *  None for a stroke icon: it inherits the `<svg>`'s stroke as always. */
+export function restAttrs(icon?: IconInput): Record<string, string> | undefined {
+  if (icon === undefined || paintOf(icon) === "stroke") return undefined;
+  return paintAttrs(...restPaint(icon));
+}
+
+// The fallback flight when the region chunk isn't there: the old shape
+// shrinks into its centroid on the first half, the new one grows out of its
+// own on the second (items carry `half`, see core/interpolate). Only `d`
+// and paint change, so every write contract draws it.
+function popPlan(from: Sampled[], to: Sampled[]): MorphPlan {
+  const n = (from[0] ?? to[0]).pts.length / 2;
+  const item = ({ pts, closed }: Sampled, half: 0 | 1) => {
+    const c = centroid(pts);
+    const p = pts.map((v, i) => v - c[i & 1]);
+    const z = new Float64Array(2 * n);
+    // (a / bO / res: unused by interpPolar)
+    return {
+      aC: half ? z : p,
+      bT: half ? p : z,
+      ca: c,
+      cb: c,
+      theta: 0,
+      lnSigma: 0,
+      closed,
+      half,
+      block: null,
+    } as unknown as PlanItem;
+  };
+  return { n, items: [...from.map((s) => item(s, 0)), ...to.map((s) => item(s, 1))] };
 }
 
 function resolveSpring(s?: SpringPreset | MorphOptions): { k: number; c: number } {
@@ -248,49 +359,54 @@ export function createMorph(
   let dead = false;
   let regionFlight = false; // the active plan is a region plan
   let pending: object | null = null; // latest request waiting for the chunk
-  let paint: Paint = "stroke"; // what the element paints (markup default)
+  let paint: Look = "stroke"; // what the element paints (markup default)
   let rule = "";
+  // Fallback flight (popPlan): items [0, split) are the old shape, painted
+  // `popFrom` on the first half; the rest the new one, painted as it rests.
+  let split = 0;
+  let popFrom: [Look, string] = ["stroke", ""];
 
   // Paint attributes are written only on change, and never for stroke-only
   // use: the element keeps inheriting the <svg>'s stroke as it always did.
-  const paintAs = (p: Paint, r = "nonzero"): void => {
+  const paintAs = (p: Look, r = "nonzero"): void => {
     if (p === paint && (p === "stroke" || r === rule)) return;
-    if (p === "fill") {
-      el.setAttribute("fill", "currentColor");
-      el.setAttribute("stroke", "none");
-      el.setAttribute("fill-rule", r);
-    } else {
-      el.setAttribute("fill", "none");
-      el.setAttribute("stroke", "inherit");
-    }
+    for (const [k, v] of Object.entries(paintAttrs(p, r))) el.setAttribute(k, v);
     paint = p;
     rule = r;
   };
 
   // The at-rest `d` + paint of an icon. A fill icon rests on its region
   // once the normalizer is around (exact union of its elements), else on
-  // its own canonical d with the rule its elements declare.
+  // its own canonical d in the closest single look (restPaint).
   const paintRest = (ic: IconInput): void => {
-    if (paintOf(ic) === "stroke") {
-      el.setAttribute("d", canonicalD(ic));
-      paintAs("stroke");
-    } else if (regionMod || isRegion(ic)) {
-      el.setAttribute(
-        "d",
-        canonicalD(regionMod ? regionMod.regionOf(ic, strokeWidth) : ic),
-      );
-      paintAs("fill");
-    } else {
-      el.setAttribute("d", canonicalD(ic));
-      paintAs("fill", restRule(ic));
-    }
+    const r =
+      regionMod && paintOf(ic) === "fill" ? regionMod.regionOf(ic, strokeWidth) : ic;
+    el.setAttribute("d", canonicalD(r));
+    paintAs(...restPaint(r));
   };
 
-  el.setAttribute("d", canonicalD(icon));
-  if (paintOf(icon) === "fill") {
-    paintAs("fill", isRegion(icon) ? "nonzero" : restRule(icon));
-    quietPreload();
-  }
+  // A fill icon resting before the chunk: its exact region once `load`
+  // brings the chunk, if it still rests on that icon.
+  const upgrade = (load: Promise<unknown>): void => {
+    const icon = target;
+    load.then(
+      () => {
+        if (!dead && rest && target === icon && pending === null) paintRest(icon);
+      },
+      () => {},
+    );
+  };
+
+  paintRest(icon);
+  if (paintOf(icon) === "fill" && !regionMod) upgrade(quietPreload());
+
+  // The slice of the plan on screen: all of it, or one side of a fallback.
+  const shown = (tt: number): [number, number] =>
+    !split
+      ? [0, plan?.items.length ?? 0]
+      : tt < 0.5
+        ? [0, split]
+        : [split, plan?.items.length ?? 0];
 
   const render = (tt: number): void => {
     const p = plan;
@@ -299,7 +415,9 @@ export function createMorph(
     if (!p || !o || !cl) return;
     t = tt;
     interpPolar(p, tt, o);
-    el.setAttribute("d", serialize(o, cl));
+    const [lo, hi] = shown(tt);
+    if (split) paintAs(...(tt < 0.5 ? popFrom : restPaint(target)));
+    el.setAttribute("d", serialize(o.slice(lo, hi), cl.slice(lo, hi)));
   };
 
   const stop = (): void => {
@@ -326,7 +444,11 @@ export function createMorph(
     spring.x = 1;
     spring.v = 0;
     regionFlight = false;
+    split = 0;
     paintRest(target);
+    // (joins a load in flight; starts one unless the last attempt failed)
+    if (paintOf(target) === "fill" && !regionMod && (regionLoading || !regionFailed))
+      upgrade(preloadRegion());
   };
 
   /** The current shape as plan source: the at-rest icon, or the rendered
@@ -335,10 +457,11 @@ export function createMorph(
     const p = plan;
     const o = out;
     if (rest || !p || !o) return sampledOf(target);
-    return o.map((buf, k) => ({
+    const [lo, hi] = shown(t);
+    return o.slice(lo, hi).map((buf, k) => ({
       pts: Float64Array.from(buf),
-      closed: p.items[k].closed,
-      hole: p.items[k].hole,
+      closed: p.items[lo + k].closed,
+      hole: p.items[lo + k].hole,
     }));
   };
 
@@ -347,8 +470,15 @@ export function createMorph(
   const needsRegion = (icon: IconInput): boolean =>
     (!rest && regionFlight) || paintOf(icon) === "fill" || paintOf(target) === "fill";
 
-  const retarget = (icon: IconInput): void => {
-    if (needsRegion(icon)) {
+  const retarget = (icon: IconInput, pop: boolean): void => {
+    if (pop || (!rest && split)) {
+      // the fallback, or a fallback flight interrupted: from what is on screen
+      const from = snapshot();
+      popFrom = [paint, rule];
+      plan = popPlan(from, sampledOf(icon));
+      split = from.length;
+      regionFlight = false;
+    } else if (needsRegion(icon)) {
       // from rest (cached), or from the shape in flight: a region as it is,
       // centerlines (a stroke morph interrupted toward a fill icon) outlined
       const mod = regionMod as RegionModule;
@@ -361,6 +491,7 @@ export function createMorph(
               strokeWidth,
             );
       regionFlight = true;
+      split = 0;
       paintAs("fill");
     } else {
       plan = rest ? planBetween(target, icon) : buildPlan(snapshot(), sampledOf(icon));
@@ -374,19 +505,30 @@ export function createMorph(
 
   // Region chunk not loaded yet: remember the LATEST request and replay it
   // when the chunk arrives — if it arrives within REGION_WAIT_MS. Past that
-  // budget, or on a failed load, `jump` runs instead (never a stuck icon,
-  // never a throw). Superseded requests are dropped.
-  const whenRegion = (icon: IconInput, run: () => void, jump: () => void): boolean => {
-    if (regionMod || !needsRegion(icon)) return false;
+  // budget (at once if the load in flight is already older), or on a failed
+  // load, `fallback` flies instead: never a stuck icon, never a throw.
+  // Superseded requests are dropped.
+  const whenRegion = (
+    icon: IconInput,
+    run: () => void,
+    fallback: () => void,
+  ): boolean => {
+    // (a fallback flight interrupted needs no chunk: it chains, see retarget)
+    if (regionMod || (!rest && split) || !needsRegion(icon)) return false;
     const req = {};
     pending = req;
     const give = (): void => {
       if (dead || pending !== req) return;
       pending = null;
-      jump();
+      fallback();
     };
+    const load = preloadRegion();
+    if (Date.now() - regionSince > REGION_WAIT_MS) {
+      give();
+      return true;
+    }
     const timer = setTimeout(give, REGION_WAIT_MS);
-    preloadRegion().then(
+    load.then(
       () => {
         clearTimeout(timer);
         if (dead || pending !== req) return;
@@ -406,16 +548,6 @@ export function createMorph(
     pending = null;
     target = icon;
     settle();
-    // Upgrade the rest shape to the exact region once the chunk is around
-    // (joins a load in flight; starts one unless the last attempt failed).
-    if (paintOf(icon) === "fill" && !regionMod && (regionLoading || !regionFailed)) {
-      preloadRegion().then(
-        () => {
-          if (!dead && rest && target === icon && pending === null) paintRest(icon);
-        },
-        () => {},
-      );
-    }
   };
 
   /** True when the policy says this morphTo must jump instead of flying. */
@@ -427,16 +559,15 @@ export function createMorph(
     return mm?.("(prefers-reduced-motion: reduce)").matches ?? false;
   };
 
-  const seek = (icon: IconInput, tt: number): void => {
+  const seek = (icon: IconInput, tt: number, pop = false): void => {
     if (dead) return;
-    // past the budget, a scrub shows the nearer endpoint
+    // past the budget, a scrub runs the fallback flight
     if (
+      !pop &&
       whenRegion(
         icon,
         () => seek(icon, tt),
-        () => {
-          if (tt >= 0.5) setNow(icon);
-        },
+        () => seek(icon, tt, true),
       )
     )
       return;
@@ -444,11 +575,15 @@ export function createMorph(
     const reuse = !rest && plan !== null && icon === target;
     stop();
     spring.v = 0; // controlled mode: no inherited velocity
-    if (!reuse) retarget(icon);
+    if (!reuse) retarget(icon, pop);
     render(tt);
   };
 
-  const morphTo = (icon: IconInput, sp?: SpringPreset | MorphOptions): void => {
+  const fly = (
+    icon: IconInput,
+    sp: SpringPreset | MorphOptions | undefined,
+    pop: boolean,
+  ): void => {
     if (dead) return;
     if (icon === target && (rest || flying)) return; // already there / en route
     if (motionOff()) {
@@ -456,17 +591,18 @@ export function createMorph(
       return;
     }
     if (
+      !pop &&
       whenRegion(
         icon,
-        () => morphTo(icon, sp),
-        () => setNow(icon),
+        () => fly(icon, sp, false),
+        () => fly(icon, sp, true),
       )
     )
       return;
     pending = null;
     const { k, c } = resolveSpring(sp);
     spring.config(k, c);
-    retarget(icon);
+    retarget(icon, pop);
     spring.start();
     if (!flying) {
       flying = true;
@@ -475,7 +611,7 @@ export function createMorph(
   };
 
   return {
-    morphTo,
+    morphTo: (icon, sp) => fly(icon, sp, false),
     set(icon) {
       if (dead) return;
       setNow(icon);

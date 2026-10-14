@@ -44,23 +44,6 @@ const SVG_GROUP = new Set(["svg", "g", "a"]);
 const SVG_SKIP = new Set(["title", "desc", "defs", "mask", "clippath", "symbol"]);
 // Paint that inherits down the tree and decides the visible surface.
 const PAINT = ["fill", "stroke", "stroke-width", "fill-rule", "opacity", "fill-opacity"];
-const GEOMETRY_ATTRS = new Set([
-  "d",
-  "x",
-  "y",
-  "width",
-  "height",
-  "rx",
-  "ry",
-  "r",
-  "cx",
-  "cy",
-  "x1",
-  "y1",
-  "x2",
-  "y2",
-  "points",
-]);
 
 type Mat = [number, number, number, number, number, number]; // a b c d e f
 
@@ -226,9 +209,8 @@ export function svgToIcon(markup: string): IconInput {
     const node: Array<readonly [string, IconNodeAttrs]> = found.map(
       ({ tag, attrs, m }) => {
         if (!m) return [tag, attrs] as const;
-        const rest: IconNodeAttrs = {};
-        for (const k in attrs)
-          if (!GEOMETRY_ATTRS.has(k) && k !== "transform") rest[k] = attrs[k];
+        // a path reads only `d`: the element's own geometry attrs go inert
+        const { transform: _, ...rest } = attrs;
         return ["path", { ...rest, d: bake(tag, attrs, m) }] as const;
       },
     );

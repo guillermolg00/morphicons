@@ -10,7 +10,7 @@ Machine: Linux x64, 12 threads. Icons: 318 upstream Iconify icons, 10 libraries,
 
 | | result |
 |---|---|
-| Static cost (every page) | **+1.07 KB gzip** on dom and on every binding (dom 6.88 → 7.95; react 7.81 → 8.87). Was +1.25 before moving the region caches into the chunk |
+| Static cost (every page) | **+1.7 KB gzip** on dom and on every binding (size-limit: dom 7.12 → 8.81; react 8.01 → 9.70). +1.07 of it is the region model; +0.6 the fixes after review (§1) |
 | Lazy cost (first morph with a fill icon) | **5.01 KB gzip / 4.59 KB brotli** incremental chunk (was 4.13 / 3.75; in the preview's Bun build the topology rules add 0.64 and the moved caches 0.26). Fetch 2 ms on the tailnet, parse + eval 0.6 ms in Chrome desktop, measured on the 4.13 KB chunk |
 | Stroke-only apps | download **0 bytes** of the chunk and never write paint (tested) |
 | Normalize (once per icon, cached) | median **1.08 ms**, p95 1.83, max 3.24 (JSC). Browser (V8): median 0.6, max 2.3 |
@@ -30,7 +30,17 @@ Measured with esbuild over `dist/` like an app build: code splitting on, minifie
 - The RN gate now **counts** the region chunk: Metro inlines `import()`.
 - New gate: `morphicons/region` (standalone 10.26 KB, gate 10.7; ~5 KB incremental over the driver). The static gates were tightened back to ~0.4–0.6 KB headroom after the move below.
 
-Where the +1.07 KB static comes from: the paint model, paint writes, and the loader with its failure and budget policy: what has to run before the chunk exists.
+Where the static bytes come from: the paint model, paint writes, and the loader with its failure and budget policy: what has to run before the chunk exists (+1.07 KB). The fixes after review added +0.6 KB, each measured by removing it alone (esbuild, gzip -9, dom entry):
+
+| fix | gzip | what it buys |
+|---|---:|---|
+| fallback flight | ~0.25 KB | a slow or failed chunk animates (old shape shrinks, new one grows) instead of jumping |
+| Chromium retry | 0.19 | the chunk loads again after a transient failure (§3) |
+| idle prefetch + Save-Data | 0.09 | the chunk leaves the mount's critical path; no bytes under Save-Data |
+| duotone filter | 0.07 | a translucent layer is no longer painted opaque before the chunk (48 of 2,010 fill icons, §5) |
+| rest look | 0.04 | stroke / fill + stroke / evenodd before the chunk (45 of 2,010, §5) |
+| SSR paint | 0.03 | a fill icon is filled in the server markup, not stroked until hydration |
+| stale-load check | 0.02 | a hanging load no longer costs 100 ms on every morph |
 
 **Cheaper options:**
 - ~~Move `regionOf` / `regionPlanBetween` and their caches into the lazy chunk.~~ Done: −0.18 KB here, −0.23 KB in size-limit (dom 8.36 → 8.13). Below the −0.3 to −0.5 estimate: the minified caches were smaller than they looked. The rest is policy that must run before the chunk exists.
@@ -67,17 +77,18 @@ The server throttles the chunk with a cookie; the page is the real build with th
 | case | what happens (measured) | before this branch's fixes | mitigation / most efficient solution |
 |---|---|---|---|
 | fast / cached (≤ 100 ms) | flies; start delay = load time (2–12 ms on the tailnet) | same | none needed |
-| slow (400 ms / 1.5 s / 5 s) | **jumps at +102 ms**, rest upgrades to the exact region when the chunk lands (+415 / +1513 ms), next morphs fly | waited the full load time with no visual response, then flew late | budget (fixed) + `preloadRegion()` on idle/hover; `<link rel="modulepreload">` for the chunk if the bundler exposes its URL |
-| hang (captive portal, dead TCP) | **jumps at +103 ms on every interaction**; never stuck | **icon stuck forever** on the old shape (bug, fixed) | budget (fixed). Possible refinement: once a load is older than the budget, jump immediately without waiting 100 ms each time |
-| fail (500 / offline) | jumps at +5 ms; **one** request per need | the jump fired a 2nd request in the same instant (retry storm, fixed) | fixed. See the next row for the browser limit |
-| fail, then the network comes back | **Chromium caches the failed `import()` for the document's lifetime**: 5 attempts → 1 request reached the server, later attempts fail in ~1 ms. Icons keep working as jumps until reload | same | not fixable in the library (the bundler owns the chunk URL). Options: static import via `setRegionLoader`; service worker precache (Workbox picks the chunk up); app-level reload on ChunkLoadError |
+| slow (400 ms / 1.5 s / 5 s) | **flies the fallback at +100 ms** (old shape shrinks, new one grows), rest upgrades to the exact region when the chunk lands, next morphs fly. Measured in the lab before the fallback: jump at +102 ms, upgrade at +415 / +1513 ms | waited the full load time with no visual response, then flew late | budget + fallback (fixed); a fill icon prefetches on idle at mount |
+| hang (captive portal, dead TCP) | first morph: fallback at +100 ms; later ones fly the fallback at once (the load is older than the budget); never stuck (tested) | **icon stuck forever** on the old shape (bug, fixed) | fixed |
+| fail (500 / offline) | fallback at once; **one** request per need | the jump fired a 2nd request in the same instant (retry storm, fixed) | fixed |
+| fail, then the network comes back | **Chromium caches the failed `import()` for the document's lifetime** (Chromium 152: a second `import()` fails with no request). The next need re-runs the chunk as a module script under `url#<time>`: a new module-map key, the same URL for the server. Verified end to end in Chromium 152 with `dist/`: 503 → fallback flight, no second request in that instant; next morph → `region.js#…` → region flight | icons stayed jumps until reload | fixed where the error names the URL (Chromium, Firefox). Safari names none; a CSP / Trusted Types policy blocking module scripts blocks the retry. Both: static import via `setRegionLoader` |
 | stale deploy (old HTML, hashed chunk deleted → 404) | same as fail | same | keep old hashed assets for N deploys / skew protection (Vercel), or a static import |
 | superseded request (A → fill, then → stroke before load) | latest wins, the stale flight is dropped (tested) | same | none needed |
 | bundler without splitting (IIFE/UMD, single-file) | inlined: no network, +5.0 KB eager | n/a | fine as is |
 | React Native / Metro | inlined (gate counts it). Paint goes through the shim (`setNativeProps`), republished on every render like `d`; `currentColor` / `inherit` resolve to the `color` prop | fill icons drew as the stroked outline of their region (fixed) | none needed. Not verified on a device: the Path mock replays Fabric commits |
-| SSR | rest shapes need no chunk (a fill icon rests on its own canonical `d` + declared rule); the client prefetches at mount and upgrades the rest `d` to the region (same pixels) | n/a | expected to be hydration-safe (the driver writes after mount); not verified in this branch |
+| SSR | every binding renders a fill icon's paint in the server markup (its rest look, §5); the client prefetches on idle and upgrades the rest `d` to the region. Pinned by SSR tests in React, Vue, Svelte and react-native-web; `<morph-icon>` adopts a server-filled path as a fill icon (tested) | the server markup drew fill icons stroked until hydration | hydration-safe: the driver writes after mount |
 | CSP / CDN | the chunk is a same-origin module script; it needs `script-src 'self'` (or `'strict-dynamic'` from a nonced entry). A cross-origin CDN must send CORS headers | n/a | config only |
-| HTTP/1.1 congestion at startup | the chunk queues behind images | n/a | modulepreload / `fetchpriority`, or preload on idle after load |
+| HTTP/1.1 congestion at startup | the prefetch waits for idle (`requestIdleCallback`, 2 s timeout) | n/a | fine as is |
+| Save-Data | no prefetch; the first morph that needs the chunk loads it (fallback if it takes > 100 ms) | prefetched at mount | fine as is |
 
 ## 4. Topology: holes that paint
 
@@ -119,7 +130,7 @@ The 19 left are short slivers mid-flight on pairs whose holes differ in structur
 - **Known modelling limits:**
   - Square / butt caps and miter joins are modelled as round. All the stroke libraries measured use round; the IoU would show the difference.
   - White "knockout" fills are not subtracted.
-  - Duotone layers with opacity < 0.5 are skipped by design.
+  - Duotone layers with opacity < 0.5 are skipped by design, before the chunk too.
 
 ## 6. Memory
 

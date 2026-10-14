@@ -45,6 +45,7 @@ import {
   type Morph,
   type MorphOptions,
   type ReducedMotionMode,
+  restAttrs,
 } from "../dom/index";
 import { useIsoLayoutEffect } from "./iso-layout-effect";
 
@@ -177,9 +178,14 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
     // must carry the driver's latest `d` instead of a mount-time snapshot.
     const liveD = useRef(initialD);
     const declaredD = liveD.current;
-    // The paint the driver wrote, raw; empty = the markup default (the path
-    // inherits the Svg's stroke). Replaced on every write, never mutated.
-    const livePaint = useRef<NativePaint>({});
+    // The paint the driver wrote, raw, seeded with the first icon's rest
+    // paint (empty for a stroke icon: the path inherits the Svg's stroke).
+    // Replaced on every write, never mutated.
+    const [initialPaint] = useState((): NativePaint => {
+      const a = restAttrs(controlled ? ((progress ?? 0) < 0.5 ? from : to) : initialIcon);
+      return a ? { fill: a.fill, stroke: a.stroke, fillRule: a["fill-rule"] } : {};
+    });
+    const livePaint = useRef(initialPaint);
     const declaredPaint = livePaint.current;
     const colorRef = useRef(color);
     colorRef.current = color;

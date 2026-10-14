@@ -13,7 +13,12 @@
 
 import type { SpringPreset } from "../core/spring";
 import type { IconInput } from "../core/types";
-import { computeInitialD, createController, type MorphHandle } from "../dom/controller";
+import {
+  computeInitialD,
+  computeInitialPaint,
+  createController,
+  type MorphHandle,
+} from "../dom/controller";
 import type { MorphOptions, PathEl, ReducedMotionMode } from "../dom/index";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -288,11 +293,26 @@ export class MorphIconElement extends Base implements MorphHandle {
       this.#path = existing;
       this.#adopted = true;
       // With no icon anywhere, the server-painted d IS the at-rest icon, so
-      // scripts can morph away from it without repeating themselves.
+      // scripts can morph away from it without repeating themselves. A
+      // server-filled path stays a fill icon (Astro: IconNodes are server-only).
       const p = this.#props;
       if (p.icon === undefined && p.from === undefined && p.to === undefined) {
         const d = existing.getAttribute("d");
-        if (d) p.icon = d;
+        const fill = existing.getAttribute("fill");
+        if (d)
+          p.icon =
+            fill && fill !== "none"
+              ? [
+                  [
+                    "path",
+                    {
+                      d,
+                      fill,
+                      "fill-rule": existing.getAttribute("fill-rule") ?? "nonzero",
+                    },
+                  ],
+                ]
+              : d;
       }
       return;
     }
@@ -306,6 +326,8 @@ export class MorphIconElement extends Base implements MorphHandle {
     this.#applyPresentation(svg);
     const path = doc.createElementNS(SVG_NS, "path");
     path.setAttribute("d", computeInitialD(this.#props));
+    for (const [k, v] of Object.entries(computeInitialPaint(this.#props) ?? {}))
+      path.setAttribute(k, v);
     svg.appendChild(path);
     this.appendChild(svg);
     this.#path = path;
@@ -361,6 +383,6 @@ declare global {
 
 export type { IconInput, IconNode, Sampled } from "../core/types";
 export type { MorphHandle } from "../dom/controller";
-export { computeInitialD } from "../dom/controller";
+export { computeInitialD, computeInitialPaint } from "../dom/controller";
 export type { Morph, MorphOptions, PathEl, ReducedMotionMode } from "../dom/index";
 export type { SpringPreset };

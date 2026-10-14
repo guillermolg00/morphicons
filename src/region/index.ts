@@ -23,7 +23,7 @@
 
 import { iconToCubics } from "../core/normalize";
 import type { MorphPlan } from "../core/plan";
-import { isRegion, paintOf, REGION_ATTR } from "../core/region";
+import { isRegion, paintOf, REGION_ATTR, translucent } from "../core/region";
 import type { IconInput, IconNode, IconNodeAttrs, Sampled } from "../core/types";
 import { buildRegionPlan, resampleRegion } from "./plan";
 
@@ -105,9 +105,7 @@ function partsOf(input: IconInput, width: number, tol: number): Part[] {
   const parts: Part[] = [];
   for (const el of input) {
     const a: IconNodeAttrs = el[1];
-    // Duotone background layers (Phosphor: opacity 0.2) are not part of a
-    // monochrome silhouette.
-    if (num(a.opacity, 1) < 0.5 || num(a["fill-opacity"], 1) < 0.5) continue;
+    if (translucent(a)) continue; // a duotone layer (core/region.ts)
     const strokeOn = fillIcon
       ? painted(a.stroke)
       : a.stroke === undefined || painted(a.stroke);
@@ -503,9 +501,19 @@ export function regionContours(
     ny: Math.ceil((maxY - minY + 2 * pad) / h) + 1,
   };
   const loops = trace(field(parts, g), g).filter((l) => Math.abs(area(l)) > 0.01);
+  // Nesting by a vote of three spread vertices: contours never cross but
+  // may touch, and a touching vertex is on both (a coin flip alone).
+  const within = (o: Float64Array, l: Float64Array): boolean => {
+    let v = 0;
+    for (let k = 0; k < 3; k++) {
+      const i = 2 * Math.floor((k * l.length) / 6);
+      if (contains(o, l[i], l[i + 1])) v++;
+    }
+    return v > 1;
+  };
   return loops.map((l) => {
     let depth = 0;
-    for (const o of loops) if (o !== l && contains(o, l[0], l[1])) depth++;
+    for (const o of loops) if (o !== l && within(o, l)) depth++;
     const hole = depth % 2 === 1;
     const oriented = area(l) > 0 === !hole ? l : reverse(l);
     return recoverCorners(simplify(oriented, h * 0.08), h);
@@ -546,7 +554,11 @@ export function toRegion(input: IconInput, options?: RegionOptions): IconNode {
 // passed to setRegionLoader must provide these three.
 
 const forms = new WeakMap<IconNode, Map<number, IconNode>>();
-const strings = new Map<string, IconNode>(); // small and bounded
+// By content too, bounded (least recently used out): strings, and icons
+// rebuilt on every render (`icon={[["path", {…}]]}`), which a WeakMap
+// never hits. Same content → same region object → its samples and plans
+// are reused as well.
+const byContent = new Map<string, IconNode>();
 const samples = new WeakMap<IconNode, Sampled[]>();
 const plans = new WeakMap<IconNode, WeakMap<IconNode, MorphPlan>>();
 
@@ -556,24 +568,21 @@ export function regionOf(icon: IconInput, strokeWidth: number): IconNode {
   if (isRegion(icon)) return icon as IconNode;
   // a fill icon ignores the width: one form for every width
   const width = paintOf(icon) === "fill" ? 0 : strokeWidth;
-  if (typeof icon === "string") {
-    const key = `${width}|${icon}`;
-    let r = strings.get(key);
-    if (!r) {
-      r = toRegion(icon, { strokeWidth });
-      if (strings.size >= 64) strings.delete(strings.keys().next().value as string);
-      strings.set(key, r);
+  let byWidth = typeof icon === "string" ? undefined : forms.get(icon);
+  let r = byWidth?.get(width);
+  if (r) return r;
+  const key = `${width}|${typeof icon === "string" ? icon : JSON.stringify(icon)}`;
+  r = byContent.get(key);
+  if (r)
+    byContent.delete(key); // re-inserted below: most recent
+  else r = toRegion(icon, { strokeWidth });
+  byContent.set(key, r);
+  if (byContent.size > 64) byContent.delete(byContent.keys().next().value as string);
+  if (typeof icon !== "string") {
+    if (!byWidth) {
+      byWidth = new Map();
+      forms.set(icon, byWidth);
     }
-    return r;
-  }
-  let byWidth = forms.get(icon);
-  if (!byWidth) {
-    byWidth = new Map();
-    forms.set(icon, byWidth);
-  }
-  let r = byWidth.get(width);
-  if (!r) {
-    r = toRegion(icon, { strokeWidth });
     byWidth.set(width, r);
   }
   return r;
@@ -624,3 +633,12 @@ export function regionPlanFrom(
 
 export { isRegion, type Paint, paintOf } from "../core/region";
 export { buildRegionPlan, resampleRegion };
+
+// The driver re-runs this chunk as a module script under a fresh URL when
+// an import() of it failed (Chromium caches that failure for the
+// document's life, src/dom/index.ts): this is how it gets the hooks back.
+(globalThis as Record<symbol, unknown>)[Symbol.for("morphicons.region")] = {
+  regionOf,
+  regionPlan,
+  regionPlanFrom,
+};

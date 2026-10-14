@@ -8,7 +8,7 @@ import { renderToString } from "react-dom/server";
 import { canonicalD } from "../../src/dom/index";
 import type { IconNode } from "../../src/index";
 import { MorphIcon } from "../../src/react/index";
-import { ICONS } from "../helpers";
+import { FILL_RING, ICONS } from "../helpers";
 
 const SQUARE: IconNode = [["rect", { x: 2, y: 2, width: 20, height: 20 }]];
 
@@ -58,6 +58,21 @@ describe("MorphIcon (SSR)", () => {
     expect(html).toContain('role="img"');
     expect(html).toContain("<title>Close menu</title>");
     expect(html).not.toContain("aria-hidden");
+  });
+
+  test("a fill icon is filled in the server markup; a stroke icon's path carries no paint", () => {
+    const html = renderToString(<MorphIcon icon={FILL_RING} />);
+    expect(html).toMatch(/<path[^>]* fill="currentColor"/);
+    expect(html).toMatch(/<path[^>]* stroke="none"/);
+    expect(html).toMatch(/<path[^>]* fill-rule="evenodd"/);
+    expect(renderToString(<MorphIcon icon={ICONS.menu} />)).toContain(
+      `<path d="${ICONS.menu}"></path>`,
+    );
+    // controlled: the paint of the endpoint the frozen shape is nearer to
+    const pair = (t: number) =>
+      renderToString(<MorphIcon from={ICONS.menu} to={FILL_RING} progress={t} />);
+    expect(pair(0.25)).not.toMatch(/<path[^>]* fill=/);
+    expect(pair(0.75)).toMatch(/<path[^>]* fill="currentColor"/);
   });
 
   test("lucide-react drop-in: size, color, strokeWidth, className passthrough", () => {

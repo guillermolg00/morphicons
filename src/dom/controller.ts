@@ -14,7 +14,13 @@ import { serialize } from "../core/serialize";
 import type { SpringPreset } from "../core/spring";
 import type { IconInput } from "../core/types";
 import type { Morph, ReducedMotionMode } from "./index";
-import { canonicalD, createMorph, type MorphOptions, type PathEl } from "./index";
+import {
+  canonicalD,
+  createMorph,
+  type MorphOptions,
+  type PathEl,
+  restAttrs,
+} from "./index";
 
 /** Imperative surface exposed by every binding (ref / bind:this / element). */
 export interface MorphHandle {
@@ -60,6 +66,20 @@ export function computeInitialD({ icon, from, to, progress }: MorphModeProps): s
   if (from !== undefined && to !== undefined) return frozenD(from, to, progress ?? 0);
   const first = icon ?? from ?? to;
   return first !== undefined ? canonicalD(first) : "";
+}
+
+/** Paint attributes of the initial `<path>` (SSR included), a constant like
+ *  the initial d: a fill icon is filled before any script runs. A frozen
+ *  controlled pair paints as the endpoint it is nearer to. */
+export function computeInitialPaint({
+  icon,
+  from,
+  to,
+  progress,
+}: MorphModeProps): Record<string, string> | undefined {
+  if (from !== undefined && to !== undefined)
+    return restAttrs((progress ?? 0) < 0.5 ? from : to);
+  return restAttrs(icon ?? from ?? to);
 }
 
 /** Per-instance driver state — the exact logic of the React/Vue bindings

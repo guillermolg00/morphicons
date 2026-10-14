@@ -19,6 +19,14 @@ export const FILL_DISC: IconNode = [
   ["circle", { cx: 12, cy: 12, r: 9, fill: "currentColor" }],
 ];
 
+/** Heroicons-solid style: one evenodd path (a square ring). */
+export const FILL_RING: IconNode = [
+  [
+    "path",
+    { d: "M4 4h16v16H4zM8 8h8v8H8z", "fill-rule": "evenodd", fill: "currentColor" },
+  ],
+];
+
 export const N = 64;
 
 export const subsOf = (name: string): Sampled[] => {

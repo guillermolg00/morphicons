@@ -13,6 +13,7 @@ import type { MorphOptions, ReducedMotionMode } from "../dom/index";
 
 export {
   computeInitialD,
+  computeInitialPaint,
   createController,
   type MorphHandle,
 } from "../dom/controller";

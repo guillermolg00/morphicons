@@ -11,6 +11,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import "./mocks";
 import type { MorphHandle, MorphIconProps } from "../../src/react-native/index";
 import { frame, pendingFrames, registerDom, settleAll } from "../client-dom";
@@ -130,6 +131,12 @@ describe("MorphIcon (React Native / paint)", () => {
     await m.rerender({ icon: ICONS.x, color: "#52697b", size: 32 });
     expect(m.paint("fill")).toBe("none");
     expect(m.paint("stroke")).toBe("#52697b");
+  });
+
+  test("the first commit already declares a fill icon's paint (react-native-web SSR)", () => {
+    const html = renderToString(<MorphIcon icon={FILL_DISC} color="#52697b" />);
+    expect(html).toMatch(/<path[^>]* fill="#52697b"/);
+    expect(html).toMatch(/<path[^>]* stroke="none"/);
   });
 
   test("stroke-only use never declares paint (the path inherits the Svg)", async () => {

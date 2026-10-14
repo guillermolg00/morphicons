@@ -30,6 +30,7 @@ import {
   type Morph,
   type MorphOptions,
   type ReducedMotionMode,
+  restAttrs,
 } from "../dom/index";
 
 /** Imperative surface exposed on the component instance (template ref). */
@@ -92,6 +93,13 @@ export const MorphIcon = defineComponent({
       if (from !== undefined && to !== undefined) return frozenD(from, to, progress ?? 0);
       const first = icon ?? from ?? to;
       return first !== undefined ? canonicalD(first) : "";
+    })();
+    // Same for the paint: a fill icon is filled in the server's markup.
+    const initialPaint = (() => {
+      const { icon, from, to, progress } = props;
+      if (from !== undefined && to !== undefined)
+        return restAttrs((progress ?? 0) < 0.5 ? from : to);
+      return restAttrs(icon ?? from ?? to);
     })();
 
     const pathEl = shallowRef<SVGPathElement | null>(null);
@@ -251,7 +259,7 @@ export const MorphIcon = defineComponent({
         },
         [
           props.label ? h("title", props.label) : null,
-          h("path", { ref: pathEl, d: initialD }),
+          h("path", { ref: pathEl, d: initialD, ...initialPaint }),
         ],
       );
     };

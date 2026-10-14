@@ -14,7 +14,7 @@ import type {
   ReducedMotionMode,
   SpringPreset,
 } from "../element/index";
-import { computeInitialD } from "../element/index";
+import { computeInitialD, computeInitialPaint } from "../element/index";
 
 interface Props {
   /** Uncontrolled mode: the icon at rest (IconNode or `d` string). */
@@ -54,6 +54,7 @@ const {
 } = Astro.props;
 
 const initialD = computeInitialD({ icon, from, to, progress });
+const initialPaint = computeInitialPaint({ icon, from, to, progress });
 const sw = absoluteStrokeWidth ? (Number(strokeWidth) * 24) / Number(size) : strokeWidth;
 
 /* String pairs ride attributes so `progress` keeps scrubbing the frozen
@@ -93,7 +94,7 @@ const stringPair = typeof from === "string" && typeof to === "string";
     aria-hidden={label ? undefined : "true"}
   >
     {label && <title>{label}</title>}
-    <path d={initialD}></path>
+    <path d={initialD} {...initialPaint}></path>
   </svg>
 </morph-icon>
 

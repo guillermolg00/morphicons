@@ -10,7 +10,7 @@
    outlining, unions, fill rules), sampling it and planning region morphs
    is the lazy half in src/region/. */
 
-import type { IconInput } from "./types";
+import type { IconInput, IconNodeAttrs } from "./types";
 
 /** How an icon is painted: centerlines with a stroke, or filled surface. */
 export type Paint = "stroke" | "fill";
@@ -20,7 +20,8 @@ export type Paint = "stroke" | "fill";
  *  outers positive, holes negative. Normalization skips it. */
 export const REGION_ATTR = "data-region";
 
-const painted = (v: unknown): boolean =>
+/** A paint attribute that paints (not absent, not `none`). */
+export const painted = (v: unknown): boolean =>
   v !== undefined && String(v).trim().toLowerCase() !== "none";
 
 /** Paint of an icon. Raw `d` strings and IconNodes that never declare a
@@ -32,6 +33,20 @@ export function paintOf(icon: IconInput): Paint {
   if (typeof icon === "string") return "stroke";
   for (const [, a] of icon) if (painted(a.fill)) return "fill";
   return "stroke";
+}
+
+/** A duotone background layer (Phosphor: opacity 0.2) is not part of a
+ *  monochrome silhouette: one path can't paint it translucent, so it is
+ *  dropped from a fill icon rather than painted opaque. */
+export const translucent = (a: IconNodeAttrs): boolean =>
+  Number.parseFloat(String(a.opacity)) < 0.5 ||
+  Number.parseFloat(String(a["fill-opacity"])) < 0.5;
+
+/** The elements a fill icon actually draws: its translucent layers out. */
+export function solid(icon: IconInput): IconInput {
+  return typeof icon === "string" || paintOf(icon) === "stroke"
+    ? icon
+    : icon.filter(([, a]) => !translucent(a));
 }
 
 /** True when the icon is already a normalized region (no work left). */

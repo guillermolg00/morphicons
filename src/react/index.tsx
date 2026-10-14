@@ -30,6 +30,7 @@ import {
   type Morph,
   type MorphOptions,
   type ReducedMotionMode,
+  restAttrs,
 } from "../dom/index";
 
 /** Imperative surface exposed via ref. */
@@ -107,6 +108,13 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
     const [initialD] = useState(() => {
       if (controlled) return frozenD(from, to, progress ?? 0);
       return initialIcon !== undefined ? canonicalD(initialIcon) : "";
+    });
+    // Same for the paint: a fill icon is filled in the server's markup.
+    const [initialPaint] = useState(() => {
+      const a = restAttrs(controlled ? ((progress ?? 0) < 0.5 ? from : to) : initialIcon);
+      return (
+        a && { fill: a.fill, stroke: a.stroke, fillRule: a["fill-rule"] as "evenodd" }
+      );
     });
 
     const pathRef = useRef<SVGPathElement>(null);
@@ -263,7 +271,7 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
         {...rest}
       >
         {label ? <title>{label}</title> : null}
-        <path ref={pathRef} d={initialD} />
+        <path ref={pathRef} d={initialD} {...initialPaint} />
       </svg>
     );
   },
