@@ -343,6 +343,64 @@ describe("region plans", () => {
     neverNegative(plan);
   });
 
+  test("a vanishing hole rides its outer's deformation, not only its similarity", () => {
+    // a slab with a low window → an arch: held still, the window would
+    // close (or open) in the doorway the arch's blend opens under it
+    const SLAB = evenodd("M3 3h15v14H3zM8 12h5v4H8z");
+    const ARCH = evenodd("M4 2h14v18h-4V9H8v11H4z");
+    for (const [a, b] of [
+      [SLAB, ARCH],
+      [ARCH, SLAB],
+    ] as const) {
+      const plan = regionPlan(a, b);
+      endsAs(plan, b);
+      neverNegative(plan);
+    }
+  });
+
+  test("a matched hole its outer's blend would uncover is unpaired: it closes, then opens", () => {
+    // a ring on a stand → a ring: the outer's samples slide toward the
+    // stand and pinch its sides mid-flight, while the round hole holds
+    const webcam: IconNode = [
+      [
+        "path",
+        {
+          d: `${circle(12, 10, 8)}${circle(12, 10, 7)}`,
+          "fill-rule": "evenodd",
+          fill: "currentColor",
+        },
+      ],
+      ["rect", { x: 11.5, y: 17.5, width: 1, height: 3, fill: "currentColor" }],
+      ["rect", { x: 3, y: 19.5, width: 18, height: 1.5, fill: "currentColor" }],
+    ];
+    const RING9 = evenodd(`${circle(12, 12, 9)}${circle(12, 12, 7.5)}`);
+    for (const [a, b] of [
+      [webcam, RING9],
+      [RING9, webcam],
+    ] as const) {
+      const plan = regionPlan(a, b);
+      endsAs(plan, b);
+      neverNegative(plan);
+      expect(plan.items.filter((it) => it.hole).map((h) => h.half)).toEqual([0, 1]);
+    }
+  });
+
+  test("a matched hole never sweeps over a hole that is still closing", () => {
+    // two panes → one: the wide pane growing into the big one would cover
+    // the narrow pane before it is gone (two holes on one spot wind −1)
+    const TWO = evenodd("M3 3h18v18H3zM5 5h7v14H5zM13 5h2v14h-2z");
+    const ONE = evenodd("M3 3h18v18H3zM5 5h14v14H5z");
+    for (const [a, b] of [
+      [TWO, ONE],
+      [ONE, TWO],
+    ] as const) {
+      const plan = regionPlan(a, b);
+      endsAs(plan, b);
+      neverNegative(plan);
+      expect(plan.items.some((it) => it.hole && it.half === undefined)).toBe(false);
+    }
+  });
+
   test("play → pause: one piece divides into two", () => {
     const plan = regionPlan(PLAY, PAUSE);
     expect(plan.items.length).toBe(2);

@@ -56,7 +56,9 @@ export function resampleRegion(icon: IconInput, N = 64): Sampled[] {
 //      with a hole they overlap (holeCosts). A hole flies in its outer's
 //      frame (inFrame): a hole outside every outer winds −1 and paints. One
 //      without partner collapses to a point (ring → disc) or grows from one,
-//      on one half of the flight.
+//      on one half of the flight, riding the outer's deformation. A pair
+//      whose blend leaves the outer's, or sweeps over another hole, is
+//      split into one that closes and one that opens.
 //   4. A piece that vanishes takes its holes with it: outer and holes share
 //      one homothety toward the same point, so they stay nested at every t.
 
@@ -238,22 +240,62 @@ function inFrame(
   };
 }
 
-// A hole on one side only (`grow` = it exists in B): its far endpoint is
-// its centroid carried through the outer's similarity. It is gone by
-// mid-flight, or born after it: the outer has barely deformed while the
-// hole is large, so it can't slide out of it, and a hole that collapses
-// never overlaps one that grows in its place (two holes on one spot wind
-// −1 and paint).
+// A hole on one side only (`grow` = it exists in B): gone by mid-flight,
+// or born after it, while it rides its outer's frame. It is large while the
+// outer has barely deformed, and a hole that collapses never overlaps one
+// that grows in its place (two holes on one spot wind −1 and paint). Its far
+// endpoint is its centroid c moved by ½δ, δ the outer's residual blend at c
+// (displacements bT − aC of the outer's samples, inverse-square weighted by
+// their distance to c): its center travels c + t·δ on its half of the
+// flight (c − (1−t)·δ when it grows), with the surface around it. Held
+// still, c lets the blend slide that surface off the hole: a house outline
+// whose outer turns into a roof leaves the shrinking hole under the eaves.
 function vanishingHole(pts: Float64Array, outer: PlanItem, grow: boolean): PlanItem {
   const s = Math.exp(outer.lnSigma);
-  const [x, y] = centroid(pts);
+  let [x, y] = centroid(pts);
+  const { aC, bT } = outer;
+  const near = grow ? outer.bO : outer.a; // same weights as in the frame (σ cancels)
+  let w = 0;
+  let dx = 0;
+  let dy = 0;
+  for (let i = 0; i < aC.length; i += 2) {
+    const k = 1 / ((near[i] - x) ** 2 + (near[i + 1] - y) ** 2 + 1e-9);
+    w += k;
+    dx += k * (bT[i] - aC[i]);
+    dy += k * (bT[i + 1] - aC[i + 1]);
+  }
+  w = (grow ? -0.5 : 0.5) / w;
+  // the far point in A's coordinates (the frame is A's, shifted)
+  if (grow) [x, y] = carry(x, y, outer.cb, outer.ca, -outer.theta, 1 / s);
+  x += w * dx;
+  y += w * dy;
   const dot = dots(
-    grow
-      ? carry(x, y, outer.cb, outer.ca, -outer.theta, 1 / s)
-      : carry(x, y, outer.ca, outer.cb, outer.theta, s),
+    grow ? [x, y] : carry(x, y, outer.ca, outer.cb, outer.theta, s),
     pts.length / 2,
   );
   return grow ? inFrame(dot, pts, outer, true, 1) : inFrame(pts, dot, outer, true, 0);
+}
+
+// Residual blend weight of an item at t ∈ [0, 1]: t, or 2t − half clamped
+// for a vanishing hole (see PlanItem.half).
+const weight = (it: PlanItem, t: number): number =>
+  Math.min(1, Math.max(0, 2 * t - (it.half ?? t)));
+
+// Samples of hole `h` that paint at t = ¼, ½, ¾ (not while a vanishing hole
+// is a point): outside the outer `o`, or inside another hole of the same
+// outer (two holes on one spot wind −1). Items of one piece share a frame,
+// so the similarity drops out and the test runs on the residual blends.
+function strays(h: PlanItem, o: PlanItem, holes: readonly PlanItem[]): number {
+  let k = 0;
+  for (const t of [0.25, 0.5, 0.75]) {
+    if (!(weight(h, t) % 1)) continue;
+    const [H, O, ...G] = [h, o, ...holes.filter((g) => g !== h)].map((it) =>
+      it.aC.map((v, i) => v + weight(it, t) * (it.bT[i] - v)),
+    );
+    for (let i = 0; i < H.length; i += 2)
+      if (!inside(H[i], H[i + 1], O) || G.some((p) => inside(H[i], H[i + 1], p))) k++;
+  }
+  return k;
 }
 
 // A piece (outer + its holes) on one side only: every point flies along
@@ -410,14 +452,28 @@ export function buildRegionPlan(
       HB.map(() => true),
       false,
     );
-    HA.forEach((h, k) => {
-      items.push(f[k] < 0 ? vanishingHole(h, it, false) : inFrame(h, HB[f[k]], it, true));
-    });
+    const holes = HA.map((h, k) =>
+      f[k] < 0 ? vanishingHole(h, it, false) : inFrame(h, HB[f[k]], it, true),
+    );
     HB.forEach((h, k) => {
-      if (!f.includes(k)) items.push(vanishingHole(h, it, true));
+      if (!f.includes(k)) holes.push(vanishingHole(h, it, true));
     });
-    const m = f.filter((x) => x >= 0).length;
-    if (m < HA.length || m < HB.length) partial = true;
+    // A matched hole that paints (out of its outer's blend, or over another
+    // hole) is unpaired — it closes, its partner opens — if that paints less.
+    // Any hole that vanishes (the partner comes next) makes the plan partial.
+    for (let k = 0; k < holes.length; k++) {
+      const h = holes[k];
+      if (h.half !== undefined) {
+        partial = true;
+        continue;
+      }
+      const c = strays(h, it, holes);
+      if (!c) continue;
+      holes.splice(k, 1, vanishingHole(h.a, it, false), vanishingHole(h.bO, it, true));
+      if (strays(holes[k], it, holes) + strays(holes[k + 1], it, holes) >= c)
+        holes.splice(k, 2, h);
+    }
+    items.push(...holes);
   }
   // The global hybrid only for congruent regions where everything pairs
   // (a vanishing hole already rides its outer's similarity).
