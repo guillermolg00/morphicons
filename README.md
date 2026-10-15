@@ -19,6 +19,10 @@
   </a>
 </p>
 
+<p align="center">
+  <img src="assets/morphicons-states.gif" alt="Three icons changing state in sequence: play to pause, sun to a filled moon, an outlined heart to a filled one, each one's color following its shape" width="720">
+</p>
+
 Morph any SVG icon into any other, stroked or filled, with spring physics. Lucide, Tabler, Heroicons, Material Symbols, Phosphor or your own paths. Zero runtime dependencies.
 
 ```tsx
