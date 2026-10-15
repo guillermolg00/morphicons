@@ -63,6 +63,14 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+/* Tailwind v4 dropped the pointer from buttons; every enabled one is clickable. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
 ::selection {
   background: var(--ink);
   color: var(--canvas-soft);

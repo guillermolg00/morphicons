@@ -82,12 +82,12 @@ export default function Home() {
               </div>
               <dl className="grid grid-cols-2 content-center gap-x-8 gap-y-10">
                 {STATS.map((s) => (
-                  <div key={s.caption}>
-                    <dt className="sr-only">{s.caption}</dt>
+                  // dt before dd (the only valid order), shown caption-under-value.
+                  <div key={s.caption} className="flex flex-col-reverse">
+                    <dt className="mt-1 text-sm text-body">{s.caption}</dt>
                     <dd className="text-3xl font-semibold tracking-[-0.03em] text-ink">
                       {s.value}
                     </dd>
-                    <p className="mt-1 text-sm text-body">{s.caption}</p>
                   </div>
                 ))}
               </dl>
