@@ -153,6 +153,19 @@ function bake(tag: string, attrs: IconNodeAttrs, m: Mat): string {
   return cubicsToPathD(paths);
 }
 
+// Comments go first, like a parser: to a fixpoint (a comment can leave a
+// `<!--` behind), and an unterminated one runs to the end of the document.
+function stripComments(markup: string): string {
+  let out = markup;
+  let prev: string;
+  do {
+    prev = out;
+    out = out.replace(/<!--[\s\S]*?-->/g, "");
+  } while (out !== prev);
+  const open = out.indexOf("<!--");
+  return open === -1 ? out : out.slice(0, open);
+}
+
 const painted = (v: string | undefined): boolean =>
   v !== undefined && v.trim().toLowerCase() !== "none";
 
@@ -175,7 +188,7 @@ export function svgToIcon(markup: string): IconInput {
     throw new Error(
       "morphicons: svgToIcon expects SVG markup — a d string or IconNode is already an IconInput",
     );
-  const clean = markup.replace(/<!--[\s\S]*?-->/g, "");
+  const clean = stripComments(markup);
   // CSS paints by selector, which a scanner can't resolve: refuse instead of
   // guessing (an Illustrator "Internal CSS" export would read as filled).
   if (/<style\b/i.test(clean))

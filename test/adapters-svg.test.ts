@@ -178,6 +178,15 @@ describe("non-rendered content is ignored", () => {
     expect(canon(svgToIcon(withComment))).toBe(canon(svgToIcon(MENU)));
   });
 
+  test("comment markers left by a comment, or never closed, are not geometry either", () => {
+    const nested =
+      '<svg stroke="currentColor" fill="none"><!<!---->-- <path d="M0 0h99"/> --><path d="M4 5h16M4 12h16M4 19h16"/></svg>';
+    expect(canon(svgToIcon(nested))).toBe(canon(svgToIcon(MENU)));
+    const open =
+      '<svg stroke="currentColor" fill="none"><path d="M4 5h16M4 12h16M4 19h16"/><!-- <path d="M0 0h99"/></svg>';
+    expect(canon(svgToIcon(open))).toBe(canon(svgToIcon(MENU)));
+  });
+
   test("display none and visibility hidden are not rendered, groups included", () => {
     const hidden =
       '<svg stroke="currentColor" fill="none">' +
