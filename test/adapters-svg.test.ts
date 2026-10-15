@@ -168,4 +168,31 @@ describe("non-rendered content is ignored", () => {
     const node = svgToIcon('<defs/><path stroke="currentColor" d="M0 0h4"/>');
     expect((node as ReadonlyArray<readonly [string, unknown]>).length).toBe(1);
   });
+
+  test("commented-out geometry is not geometry", () => {
+    const withComment =
+      '<svg stroke="currentColor" fill="none">' +
+      '<!-- <path d="M0 0h99v99H0z"/> -->' +
+      '<path d="M4 5h16M4 12h16M4 19h16"/>' +
+      "</svg>";
+    expect(canon(svgToIcon(withComment))).toBe(canon(svgToIcon(MENU)));
+  });
+
+  test("display none and visibility hidden are not rendered, groups included", () => {
+    const hidden =
+      '<svg stroke="currentColor" fill="none">' +
+      '<path display="none" d="M0 0h99"/>' +
+      '<path style="visibility:hidden" d="M0 0h98"/>' +
+      '<g display="none"><path display="inline" d="M0 0h97"/></g>' +
+      '<path d="M4 5h16M4 12h16M4 19h16"/>' +
+      "</svg>";
+    expect(canon(svgToIcon(hidden))).toBe(canon(svgToIcon(MENU)));
+  });
+
+  test("CSS paint (an Illustrator Internal CSS export) is refused, not guessed", () => {
+    const css =
+      '<svg viewBox="0 0 24 24"><defs><style>.a{fill:none;stroke:#000}</style></defs>' +
+      '<path class="a" d="M4 5h16M4 12h16M4 19h16"/></svg>';
+    expect(() => svgToIcon(css)).toThrow("<style>");
+  });
 });

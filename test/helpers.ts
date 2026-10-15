@@ -1,5 +1,6 @@
 import { expect } from "bun:test";
 import type { IconNode } from "../src/core/types";
+import { createMorph, preloadRegion } from "../src/dom/index";
 import { resampleIcon, type Sampled } from "../src/index";
 
 /** The 6 reference icons as real Lucide `d` attributes. They exercise H/V,
@@ -18,6 +19,29 @@ export const ICONS: Record<string, string> = {
 export const FILL_DISC: IconNode = [
   ["circle", { cx: 12, cy: 12, r: 9, fill: "currentColor" }],
 ];
+
+/** Reference d of a driver scrubbing stroke → fill at `t`, outlining the
+ *  stroke icon at `strokeWidth` (what a binding must forward). */
+export async function regionScrubD(
+  from: string,
+  t: number,
+  strokeWidth: number,
+): Promise<string> {
+  await preloadRegion();
+  let d = "";
+  const m = createMorph(
+    {
+      setAttribute: (k, v) => {
+        if (k === "d") d = v;
+      },
+    },
+    from,
+    { strokeWidth },
+  );
+  m.seek(FILL_DISC, t);
+  m.destroy();
+  return d;
+}
 
 /** Heroicons-solid style: one evenodd path (a square ring). */
 export const FILL_RING: IconNode = [

@@ -33,6 +33,7 @@ interface ScriptEl {
   src: string;
   onload: (() => void) | null;
   onerror: (() => void) | null;
+  remove(): void;
 }
 declare const document:
   | { createElement(tag: "script"): ScriptEl; head: { append(el: ScriptEl): void } }
@@ -218,6 +219,7 @@ let regionFailed = false; // last attempt failed: prefetches wait for a need
 // that import failed for the document's life, so a retry that fails again
 // re-runs the chunk under a fresh URL.
 let regionUrl: string | undefined;
+let regionGen = 0; // bumped by setRegionLoader: a load from an older loader is ignored
 let regionLoader: () => Promise<RegionModule> = () => import("../region/index");
 
 /** Replaces how the region normalizer is loaded (default: dynamic import of
@@ -226,6 +228,7 @@ let regionLoader: () => Promise<RegionModule> = () => import("../region/index");
  *  network mid-interaction. The next need loads through the new loader. */
 export function setRegionLoader(loader: () => Promise<RegionModule>): void {
   regionLoader = loader;
+  regionGen++;
   regionLoading = null;
   regionMod = null;
   regionFailed = false;
@@ -242,6 +245,7 @@ const reload = (url: string): Promise<RegionModule> =>
     const s = (document as NonNullable<typeof document>).createElement("script");
     s.type = "module";
     s.onload = s.onerror = () => {
+      s.remove();
       const m = (globalThis as Record<symbol, RegionModule | undefined>)[
         Symbol.for("morphicons.region")
       ];
@@ -268,16 +272,18 @@ export function preloadRegion(): Promise<RegionModule> {
   if (!regionLoading) {
     regionSince = Date.now();
     const url = regionUrl;
+    const gen = regionGen;
     // a plain import() first: browsers that don't cache the failure fetch
     // again (Safari ≤26.1, Firefox 155+, Chrome 156+, webpack's loader)
     regionLoading = regionLoader()
       .catch((e: unknown) => (url ? reload(url) : Promise.reject(e)))
       .then(
         (m) => {
-          regionMod = m;
+          if (gen === regionGen) regionMod = m;
           return m;
         },
         (e: unknown) => {
+          if (gen !== regionGen) throw e;
           regionLoading = null; // not cached: a later need retries
           regionFailed = true;
           // Chromium/Firefox name the URL. Safari doesn't: it is read off the
@@ -422,12 +428,14 @@ export function createMorph(
   let flying = false; // ticker registered (spring running)
   let dead = false;
   let regionFlight = false; // the active plan is a region plan
+  let drawn = false; // the active plan's buffers hold a rendered frame
   let pending: object | null = null; // latest request waiting for the chunk
   let paint: Look = "stroke"; // what the element paints (markup default)
   // Fallback flight (popPlan): items [0, split) are the old shape, painted
   // `popFrom` on the first half; the rest the new one, painted as it rests.
   let split = 0;
   let popFrom: Look = "stroke";
+  let popBase: IconInput | null = null; // the at-rest icon a fallback took off from
 
   // Paint attributes are written only on change, and never for stroke-only
   // use: the element keeps inheriting the <svg>'s stroke as it always did.
@@ -477,6 +485,7 @@ export function createMorph(
     if (!p || !o || !cl) return;
     t = tt;
     interpPolar(p, tt, o);
+    drawn = true;
     const [lo, hi] = shown(tt);
     if (split) paintAs(tt < 0.5 ? popFrom : restLook(target));
     el.setAttribute("d", serialize(o.slice(lo, hi), cl.slice(lo, hi)));
@@ -533,9 +542,16 @@ export function createMorph(
     (!rest && regionFlight) || paintOf(icon) === "fill" || paintOf(target) === "fill";
 
   const retarget = (icon: IconInput, pop: boolean): void => {
+    // retargeted again before a frame: the buffers were never drawn, and
+    // the screen still shows the plan's source (interp at 0 is exact)
+    if (!rest && plan && out && !drawn) {
+      t = 0;
+      interpPolar(plan, 0, out);
+    }
     if (pop || (!rest && split)) {
       // the fallback, or a fallback flight interrupted: from what is on screen
       const from = snapshot();
+      popBase = rest ? target : null;
       popFrom = paint;
       plan = popPlan(from, sampledOf(icon));
       split = from.length;
@@ -560,6 +576,7 @@ export function createMorph(
       regionFlight = false;
     }
     out = allocOutputs(plan);
+    drawn = false;
     closed = plan.items.map((it) => it.closed);
     target = icon;
     rest = false;
@@ -589,7 +606,7 @@ export function createMorph(
       give();
       return true;
     }
-    const timer = setTimeout(give, REGION_WAIT_MS);
+    const timer = setTimeout(give, REGION_WAIT_MS - (Date.now() - regionSince));
     load.then(
       () => {
         clearTimeout(timer);
@@ -634,7 +651,13 @@ export function createMorph(
     )
       return;
     pending = null;
-    const reuse = !rest && plan !== null && icon === target;
+    let reuse = !rest && plan !== null && icon === target;
+    if (reuse && split && regionMod && popBase !== null) {
+      // the chunk landed mid-scrub: from the fallback back to the region morph
+      target = popBase;
+      rest = true;
+      reuse = false;
+    }
     stop();
     spring.v = 0; // controlled mode: no inherited velocity
     if (!reuse) retarget(icon, pop);
@@ -647,7 +670,10 @@ export function createMorph(
     pop: boolean,
   ): void => {
     if (dead) return;
-    if (icon === target && (rest || flying)) return; // already there / en route
+    if (icon === target && (rest || flying)) {
+      pending = null; // already there / en route: a request waiting for the chunk is stale
+      return;
+    }
     if (motionOff()) {
       setNow(icon);
       return;

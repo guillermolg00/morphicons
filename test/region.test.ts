@@ -246,6 +246,17 @@ describe("normalizer (toRegion)", () => {
     expect(cs.length).toBe(1); // the stub sticks out of the disc, one surface
     expect(signedArea(cs[0])).toBeGreaterThan(Math.PI * 100);
   });
+
+  test("a fill icon with a stroke at the inherited width caches per width", () => {
+    const wallet: IconNode = [
+      ["path", { d: "M3 7h18v13H3z", fill: "none", stroke: "currentColor" }],
+      ["circle", { cx: 16.5, cy: 13.5, r: 1, fill: "currentColor" }],
+    ];
+    expect(region.regionOf(wallet, 2)).not.toBe(region.regionOf(wallet, 6));
+    expect(region.regionOf(wallet, 2)).toBe(region.regionOf(wallet, 2));
+    // a pure fill icon: one form for every width
+    expect(region.regionOf(RING, 2)).toBe(region.regionOf(RING, 6));
+  });
 });
 
 describe("region plans", () => {
@@ -704,7 +715,16 @@ describe("driver: region flights", () => {
     };
     const create = doc.createElement;
     const append = doc.head.append;
-    doc.createElement = () => ({ type: "", src: "", onload: null, onerror: null });
+    doc.createElement = () => ({
+      type: "",
+      src: "",
+      onload: null,
+      onerror: null,
+      removed: false,
+      remove() {
+        this.removed = true;
+      },
+    });
     doc.head.append = (s: (typeof scripts)[number]) => scripts.push(s);
     try {
       const p = fake();
@@ -725,6 +745,7 @@ describe("driver: region flights", () => {
         /^https:\/\/cdn\.example\/assets\/region-abc\.js#\d+$/,
       );
       scripts[0].onload?.(); // the chunk ran: it registered its hooks
+      expect((scripts[0] as unknown as { removed: boolean }).removed).toBe(true); // no tag left behind
       await flush();
       settleAll();
       m.morphTo(DISC);
@@ -755,7 +776,16 @@ describe("driver: region flights", () => {
     };
     const create = doc.createElement;
     const append = doc.head.append;
-    doc.createElement = () => ({ type: "", src: "", onload: null, onerror: null });
+    doc.createElement = () => ({
+      type: "",
+      src: "",
+      onload: null,
+      onerror: null,
+      removed: false,
+      remove() {
+        this.removed = true;
+      },
+    });
     doc.head.append = (s: (typeof scripts)[number]) => scripts.push(s);
     try {
       await preloadRegion().catch(() => {});
@@ -800,6 +830,97 @@ describe("driver: region flights", () => {
     await flush();
     expect(pendingFrames()).toBe(0); // the stale DISC request did not fire
     expect(p.attrs.get("d")).toBe(rest);
+    m.destroy();
+  });
+
+  test("back to the current icon while the chunk is on the wire cancels the request", async () => {
+    const d = deferred();
+    setRegionLoader(() => d.promise);
+    const p = fake();
+    const m = createMorph(p.el, LUCIDE_X);
+    const rest = p.attrs.get("d");
+    m.morphTo(DISC); // hover: needs the chunk → pending
+    m.morphTo(LUCIDE_X); // un-hover within the budget: already there
+    d.resolve(region);
+    await flush();
+    expect(pendingFrames()).toBe(0); // the stale DISC request did not fire
+    expect(p.attrs.get("d")).toBe(rest);
+    expect(p.attrs.get("fill")).toBeUndefined();
+    m.destroy();
+  });
+
+  test("repeated requests don't stretch the budget past the load's start", async () => {
+    const d = deferred();
+    setRegionLoader(() => d.promise);
+    const m = createMorph(fake().el, LUCIDE_X);
+    m.morphTo(DISC);
+    await new Promise((r) => setTimeout(r, 60));
+    m.morphTo(DISC); // same request again: the 100 ms run from the load, not from here
+    await new Promise((r) => setTimeout(r, 60));
+    expect(pendingFrames()).toBeGreaterThan(0); // the fallback flies at ~100 ms, not ~160
+    settleAll();
+    d.resolve(region);
+    await flush();
+    m.destroy();
+  });
+
+  test("destroy while the chunk is on the wire: nothing writes after", async () => {
+    const d = deferred();
+    setRegionLoader(() => d.promise);
+    const p = fake();
+    const m = createMorph(p.el, LUCIDE_X);
+    m.morphTo(DISC);
+    m.destroy();
+    const n = p.writes.length;
+    d.resolve(region);
+    await flush();
+    await new Promise((r) => setTimeout(r, 130)); // past the budget too
+    expect(p.writes.length).toBe(n);
+    expect(pendingFrames()).toBe(0);
+  });
+
+  test("a scrub that blew the budget takes the region morph once the chunk lands", async () => {
+    const d = deferred();
+    setRegionLoader(() => d.promise);
+    const p = fake();
+    const m = createMorph(p.el, LUCIDE_X);
+    m.seek(DISC, 0.2);
+    await new Promise((r) => setTimeout(r, 130)); // fallback installed
+    m.seek(DISC, 0.6);
+    const fallback = p.attrs.get("d");
+    d.resolve(region);
+    await flush();
+    m.seek(DISC, 0.6); // same pair, same t: now the region morph
+    const fresh = fake();
+    const ref = createMorph(fresh.el, LUCIDE_X);
+    ref.seek(DISC, 0.6);
+    expect(p.attrs.get("d")).toBe(fresh.attrs.get("d"));
+    expect(p.attrs.get("d")).not.toBe(fallback);
+    m.destroy();
+    ref.destroy();
+  });
+
+  test("a load from a loader replaced mid-flight is ignored", async () => {
+    const old = deferred();
+    setRegionLoader(() => old.promise);
+    const first = preloadRegion();
+    const fresh = { ...region };
+    setRegionLoader(async () => fresh as typeof region);
+    old.resolve(region);
+    await first;
+    expect(await preloadRegion()).toBe(fresh as typeof region);
+  });
+
+  test("stroke flight retargeted to a fill icon before its first frame doesn't throw", async () => {
+    await preloadRegion();
+    const p = fake();
+    const m = createMorph(p.el, LUCIDE_X);
+    m.morphTo("M4 6h16M4 12h16M4 18h16");
+    expect(() => m.morphTo(PAUSE)).not.toThrow(); // same tick, buffers never drawn
+    frame(16);
+    expect(p.attrs.get("d")).not.toMatch(/NaN|undefined/);
+    settleAll();
+    expect((p.attrs.get("d") ?? "").match(/M/g)?.length).toBe(2);
     m.destroy();
   });
 

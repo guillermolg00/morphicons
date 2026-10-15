@@ -1,7 +1,7 @@
 {
   "name": "morphicons",
   "version": "2.0.0",
-  "description": "Universal morphing for stroke-based icons with spring physics — zero runtime dependencies",
+  "description": "Universal morphing for SVG icons, stroked or filled, with spring physics and zero runtime dependencies",
   "license": "MIT",
   "author": "Guillermo (https://guillermolg.com)",
   "homepage": "https://www.morphicons.com",
@@ -142,7 +142,7 @@
       "name": "core + dom (createMorph + scheduler)",
       "path": "dist/dom.js",
       "import": "*",
-      "limit": "9.2 KB",
+      "limit": "9.3 KB",
       "gzip": true,
       "ignore": [
         "./region.js"
@@ -190,14 +190,14 @@
       "ignore": [
         "./region.js"
       ],
-      "limit": "10.1 KB",
+      "limit": "10.3 KB",
       "gzip": true
     },
     {
       "name": "core + dom + react-native (MorphIcon, react/rn/rnsvg external; Metro inlines the region chunk)",
       "path": "dist/react-native.js",
       "import": "*",
-      "limit": "15.8 KB",
+      "limit": "16 KB",
       "gzip": true
     },
     {
@@ -207,7 +207,7 @@
       "ignore": [
         "./region.js"
       ],
-      "limit": "10.1 KB",
+      "limit": "10.3 KB",
       "gzip": true
     },
     {
@@ -217,7 +217,7 @@
       "ignore": [
         "./region.js"
       ],
-      "limit": "9.8 KB",
+      "limit": "9.9 KB",
       "gzip": true
     },
     {
@@ -233,7 +233,7 @@
       "name": "core + dom + element (<morph-icon> custom element)",
       "path": "dist/element.js",
       "import": "*",
-      "limit": "11 KB",
+      "limit": "11.2 KB",
       "gzip": true,
       "ignore": [
         "./region.js"

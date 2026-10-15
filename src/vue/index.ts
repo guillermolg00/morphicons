@@ -24,6 +24,7 @@ import { resampleIcon } from "../core/resample";
 import { serialize } from "../core/serialize";
 import type { SpringPreset } from "../core/spring";
 import type { IconInput } from "../core/types";
+import { frozenEnd } from "../dom/controller";
 import {
   canonicalD,
   createMorph,
@@ -42,8 +43,8 @@ export interface MorphHandle {
 /** Frozen shape of the from→to pair at t, using the pure core (SSR-safe).
  *  At exact endpoints returns the canonical `d` (real curves, not polyline). */
 function frozenD(from: IconInput, to: IconInput, t: number): string {
-  if (t <= 0) return canonicalD(from);
-  if (t >= 1) return canonicalD(to);
+  const end = frozenEnd(from, to, t);
+  if (end !== null) return canonicalD(end);
   const plan = buildPlan(resampleIcon(from), resampleIcon(to));
   const out = allocOutputs(plan);
   interpPolar(plan, t, out);
@@ -97,8 +98,10 @@ export const MorphIcon = defineComponent({
     // Same for the paint: a fill icon is filled in the server's markup.
     const initialPaint = (() => {
       const { icon, from, to, progress } = props;
-      if (from !== undefined && to !== undefined)
-        return restAttrs((progress ?? 0) < 0.5 ? from : to);
+      if (from !== undefined && to !== undefined) {
+        const t = progress ?? 0;
+        return restAttrs(frozenEnd(from, to, t) ?? (t < 0.5 ? from : to));
+      }
       return restAttrs(icon ?? from ?? to);
     })();
 
@@ -109,6 +112,14 @@ export const MorphIcon = defineComponent({
     // controlled pair (enables incremental seek without re-basing on `from`).
     let based = false;
     let pair: readonly [IconInput, IconInput] | null = null;
+    // The stroke width on the 24 grid: what a stroke icon is outlined at
+    // when it morphs with a fill icon (live, like the policy).
+    const gridSw = (): number =>
+      Number(
+        props.absoluteStrokeWidth
+          ? (Number(props.strokeWidth) * 24) / Number(props.size)
+          : props.strokeWidth,
+      );
     // Watch baselines (mount doesn't fire the mode watchers).
     let prevIcon = props.icon;
     let prevControlled = props.from !== undefined && props.to !== undefined;
@@ -120,7 +131,10 @@ export const MorphIcon = defineComponent({
       if (morph) return morph;
       const el = pathEl.value;
       if (dead || !el) return null;
-      morph = createMorph(el, birth, { reducedMotion: props.reducedMotion });
+      morph = createMorph(el, birth, {
+        reducedMotion: props.reducedMotion,
+        strokeWidth: gridSw(),
+      });
       return morph;
     };
 
@@ -132,6 +146,7 @@ export const MorphIcon = defineComponent({
       if (!el || initialIcon === undefined) return; // lazy: waits for an icon
       const m = createMorph(el, controlled ? from : initialIcon, {
         reducedMotion: props.reducedMotion,
+        strokeWidth: gridSw(),
       });
       morph = m;
       if (controlled) {
@@ -164,6 +179,9 @@ export const MorphIcon = defineComponent({
         if (morph) morph.reducedMotion = v;
       },
     );
+    watch(gridSw, (v) => {
+      if (morph) morph.strokeWidth = v;
+    });
 
     // Uncontrolled mode: animate when `icon` changes. Controlled wins while
     // a full pair is present; dropping the pair hands the path back to
@@ -183,8 +201,9 @@ export const MorphIcon = defineComponent({
         pair = null;
         based = false;
         if (morph) {
-          // Policy and icon may change in the same flush: apply it first.
+          // Policy, width and icon may change in the same flush: apply them first.
           morph.reducedMotion = props.reducedMotion;
+          morph.strokeWidth = gridSw();
           morph.morphTo(icon, props.spring);
         } else ensure(icon); // late first icon: born already showing it
       },
@@ -200,6 +219,7 @@ export const MorphIcon = defineComponent({
         if (from === undefined || to === undefined) return;
         const m = morph ?? ensure(from);
         if (!m) return;
+        m.strokeWidth = gridSw(); // same flush as a width change: seek at the new one
         const t = progress ?? 0;
         const changed = !pair || pair[0] !== from || pair[1] !== to;
         if (changed) {

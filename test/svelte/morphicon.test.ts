@@ -69,10 +69,11 @@ describe("MorphIcon (Svelte SSR)", () => {
     expect(html).toMatch(/<path[^>]* stroke="none"/);
     expect(html).toMatch(/<path[^>]* fill-rule="nonzero"/);
     expect(ssr({ icon: ICONS.menu })).not.toMatch(/<path[^>]* fill=/);
-    expect(ssr({ from: ICONS.menu, to: FILL_RING, progress: 0.25 })).not.toMatch(
-      /<path[^>]* fill=/,
-    );
-    expect(ssr({ from: ICONS.menu, to: FILL_RING, progress: 0.75 })).toMatch(
+    // controlled with a fill endpoint: mid-way the server rests on `from`
+    const mid = ssr({ from: ICONS.menu, to: FILL_RING, progress: 0.75 });
+    expect(mid).toContain(`d="${ICONS.menu}"`);
+    expect(mid).not.toMatch(/<path[^>]* fill=/);
+    expect(ssr({ from: ICONS.menu, to: FILL_RING, progress: 1 })).toMatch(
       /<path[^>]* fill="currentColor"/,
     );
   });

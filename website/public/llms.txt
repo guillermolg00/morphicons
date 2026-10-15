@@ -18,7 +18,7 @@ Entries: `morphicons/react`, `morphicons/vue`, `morphicons/svelte` (Svelte 5), `
 - Every binding has three modes: uncontrolled (`icon`), controlled (`from` / `to` / `progress`) and imperative (`morphTo` / `set`).
 - Props: `size`, `color`, `strokeWidth`, `absoluteStrokeWidth`, `label`, `spring` (`"snappy"` default, `"smooth"`, `"bouncy"` or `{ stiffness, damping }`), `reducedMotion` (`"never"` default, `"user"`, `"always"`). Exact SSR, `aria-hidden` unless `label` is set.
 - Icons are `IconNode` data (Lucide's format) or `d` strings on a 24×24 grid; `fitIcon(icon, viewBox)` re-grids other sets, `svgToIcon(markup)` reads SVG markup.
-- Filled icons morph through a ~5.4 KB gzip chunk fetched on first use. `setRegionLoader(async () => region)` with `import * as region from "morphicons/region"` bundles it; `preloadRegion()` prefetches it. Both come from `morphicons/dom`.
+- Filled icons morph through a ~5.4 KB gzip chunk fetched on first use. `setRegionLoader(async () => region)` with `import * as region from "morphicons/region"` bundles it; `preloadRegion()` prefetches it. Both come from `morphicons/dom`. `toRegion(icon)` from `morphicons/region` precomputes a filled shape at build time.
 - `maskTarget` and `canvasTarget` draw strokes only.
 
 ## Docs

@@ -9,6 +9,7 @@
 
 import { allocOutputs, interpPolar } from "../core/interpolate";
 import { buildPlan } from "../core/plan";
+import { paintOf } from "../core/region";
 import { resampleIcon } from "../core/resample";
 import { serialize } from "../core/serialize";
 import type { SpringPreset } from "../core/spring";
@@ -38,17 +39,30 @@ export interface MorphModeProps {
 
 export interface MorphCtrlProps extends MorphModeProps {
   reducedMotion?: ReducedMotionMode;
+  /** The stroke width on the 24 grid (absoluteStrokeWidth already resolved):
+   *  what a stroke icon is outlined at when it morphs with a fill icon. */
+  strokeWidth?: number | string;
 }
 
 export interface MorphWatchProps extends MorphCtrlProps {
   spring?: SpringPreset | MorphOptions;
 }
 
+/** The endpoint a frozen controlled pair renders at rest at `t` (SSR
+ *  included), or null mid-way for a stroke pair, interpolated with the pure
+ *  core. A pair with a fill endpoint scrubs as a region morph, which only the
+ *  lazy chunk draws: mid-way it renders `from` until the client's first seek. */
+export function frozenEnd(from: IconInput, to: IconInput, t: number): IconInput | null {
+  if (t >= 1) return to;
+  if (t <= 0 || paintOf(from) === "fill" || paintOf(to) === "fill") return from;
+  return null;
+}
+
 /** Frozen shape of the from→to pair at t, using the pure core (SSR-safe).
  *  At exact endpoints returns the canonical `d` (real curves, not polyline). */
 function frozenD(from: IconInput, to: IconInput, t: number): string {
-  if (t <= 0) return canonicalD(from);
-  if (t >= 1) return canonicalD(to);
+  const end = frozenEnd(from, to, t);
+  if (end !== null) return canonicalD(end);
   const plan = buildPlan(resampleIcon(from), resampleIcon(to));
   const out = allocOutputs(plan);
   interpPolar(plan, t, out);
@@ -70,15 +84,18 @@ export function computeInitialD({ icon, from, to, progress }: MorphModeProps): s
 
 /** Paint attributes of the initial `<path>` (SSR included), a constant like
  *  the initial d: a fill icon is filled before any script runs. A frozen
- *  controlled pair paints as the endpoint it is nearer to. */
+ *  stroke pair paints as the endpoint it is nearer to; one with a fill
+ *  endpoint rests on `from` mid-way, like its d (frozenEnd). */
 export function computeInitialPaint({
   icon,
   from,
   to,
   progress,
 }: MorphModeProps): Record<string, string> | undefined {
-  if (from !== undefined && to !== undefined)
-    return restAttrs((progress ?? 0) < 0.5 ? from : to);
+  if (from !== undefined && to !== undefined) {
+    const t = progress ?? 0;
+    return restAttrs(frozenEnd(from, to, t) ?? (t < 0.5 ? from : to));
+  }
   return restAttrs(icon ?? from ?? to);
 }
 
@@ -104,6 +121,7 @@ export function createController({
   to,
   progress,
   reducedMotion,
+  strokeWidth,
 }: MorphCtrlProps) {
   let el: PathEl | null = null;
   let dead = false;
@@ -111,6 +129,7 @@ export function createController({
   // Reduced-motion policy: tracked here so a driver born at any point (mount,
   // late icon, imperative) starts with the current value.
   let rm: ReducedMotionMode = reducedMotion ?? "never";
+  let sw = Number(strokeWidth ?? 2); // same: the outline width a stroke↔fill morph uses
   // true when the instance has an active seek plan based on the current
   // controlled pair (enables incremental seek without re-basing on `from`).
   let based = false;
@@ -126,7 +145,7 @@ export function createController({
   const ensure = (birth: IconInput): Morph | null => {
     if (morph) return morph;
     if (dead || !el) return null;
-    morph = createMorph(el, birth, { reducedMotion: rm });
+    morph = createMorph(el, birth, { reducedMotion: rm, strokeWidth: sw });
     return morph;
   };
 
@@ -162,14 +181,18 @@ export function createController({
   return {
     mount(
       mountEl: PathEl,
-      { icon, from, to, progress, reducedMotion }: MorphCtrlProps,
+      { icon, from, to, progress, reducedMotion, strokeWidth }: MorphCtrlProps,
     ): void {
       el = mountEl;
       rm = reducedMotion ?? rm;
+      sw = Number(strokeWidth ?? sw);
       const controlled = from !== undefined && to !== undefined;
       const initialIcon = icon ?? from ?? to;
       if (initialIcon === undefined) return; // lazy: the driver waits for an icon
-      const m = createMorph(el, controlled ? from : initialIcon, { reducedMotion: rm });
+      const m = createMorph(el, controlled ? from : initialIcon, {
+        reducedMotion: rm,
+        strokeWidth: sw,
+      });
       morph = m;
       if (controlled) {
         pair = [from, to];
@@ -195,12 +218,24 @@ export function createController({
     /** Prop watcher: ONE owner decides per run — the controlled pair while it
      *  is fully present, `icon` otherwise (mount doesn't fire thanks to the
      *  init-time baselines). */
-    watch({ icon, from, to, progress, spring, reducedMotion }: MorphWatchProps): void {
-      // The reduced-motion policy is live, applied BEFORE the mode logic so
-      // a run that changes the policy and the icon together applies the new
-      // policy to that same morph.
+    watch({
+      icon,
+      from,
+      to,
+      progress,
+      spring,
+      reducedMotion,
+      strokeWidth,
+    }: MorphWatchProps): void {
+      // The reduced-motion policy and the stroke width are live, applied
+      // BEFORE the mode logic so a run that changes them together with the
+      // icon applies the new values to that same morph.
       rm = reducedMotion ?? "never";
-      if (morph) morph.reducedMotion = rm;
+      sw = Number(strokeWidth ?? 2);
+      if (morph) {
+        morph.reducedMotion = rm;
+        morph.strokeWidth = sw;
+      }
       const controlled = from !== undefined && to !== undefined;
       const left = prevControlled && !controlled;
       const iconChanged = icon !== prevIcon;

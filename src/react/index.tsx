@@ -24,6 +24,7 @@ import { resampleIcon } from "../core/resample";
 import { serialize } from "../core/serialize";
 import type { SpringPreset } from "../core/spring";
 import type { IconInput } from "../core/types";
+import { frozenEnd } from "../dom/controller";
 import {
   canonicalD,
   createMorph,
@@ -71,8 +72,8 @@ const useIsoLayoutEffect = typeof document === "undefined" ? useEffect : useLayo
 /** Frozen shape of the from→to pair at t, using the pure core (SSR-safe).
  *  At exact endpoints returns the canonical `d` (real curves, not polyline). */
 function frozenD(from: IconInput, to: IconInput, t: number): string {
-  if (t <= 0) return canonicalD(from);
-  if (t >= 1) return canonicalD(to);
+  const end = frozenEnd(from, to, t);
+  if (end !== null) return canonicalD(end);
   const plan = buildPlan(resampleIcon(from), resampleIcon(to));
   const out = allocOutputs(plan);
   interpPolar(plan, t, out);
@@ -111,7 +112,11 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
     });
     // Same for the paint: a fill icon is filled in the server's markup.
     const [initialPaint] = useState(() => {
-      const a = restAttrs(controlled ? ((progress ?? 0) < 0.5 ? from : to) : initialIcon);
+      const a = restAttrs(
+        controlled
+          ? (frozenEnd(from, to, progress ?? 0) ?? ((progress ?? 0) < 0.5 ? from : to))
+          : initialIcon,
+      );
       return (
         a && { fill: a.fill, stroke: a.stroke, fillRule: a["fill-rule"] as "evenodd" }
       );
@@ -123,6 +128,13 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
     springRef.current = spring;
     const rmRef = useRef(reducedMotion);
     rmRef.current = reducedMotion;
+    // The stroke width on the 24 grid: what a stroke icon is outlined at
+    // when it morphs with a fill icon (live, like the policy).
+    const gridSw = Number(
+      absoluteStrokeWidth ? (Number(strokeWidth) * 24) / Number(size) : strokeWidth,
+    );
+    const swRef = useRef(gridSw);
+    swRef.current = gridSw;
     // Watch baselines (mount doesn't fire the mode effect thanks to these).
     const prevIcon = useRef(icon);
     const prevControlled = useRef(controlled);
@@ -140,7 +152,10 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
       if (morphRef.current) return morphRef.current;
       const el = pathRef.current;
       if (dead.current || !el) return null;
-      morphRef.current = createMorph(el, birth, { reducedMotion: rmRef.current });
+      morphRef.current = createMorph(el, birth, {
+        reducedMotion: rmRef.current,
+        strokeWidth: swRef.current,
+      });
       return morphRef.current;
     }, []);
 
@@ -150,6 +165,7 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
       if (el && initialIcon !== undefined) {
         const m = createMorph(el, controlled ? from : initialIcon, {
           reducedMotion: rmRef.current,
+          strokeWidth: swRef.current,
         });
         morphRef.current = m;
         if (controlled) {
@@ -180,6 +196,11 @@ export const MorphIcon = forwardRef<MorphHandle, MorphIconProps>(
       const m = morphRef.current;
       if (m) m.reducedMotion = reducedMotion ?? "never";
     }, [reducedMotion]);
+
+    useEffect(() => {
+      const m = morphRef.current;
+      if (m) m.strokeWidth = gridSw;
+    }, [gridSw]);
 
     // Uncontrolled mode: animate when `icon` changes. Controlled wins while
     // a full pair is present; dropping the pair hands the path back to

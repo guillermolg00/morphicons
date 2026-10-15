@@ -12,7 +12,7 @@ import { createRoot } from "react-dom/client";
 import type { MorphHandle, MorphIconProps } from "../../src/react/index";
 import { MorphIcon } from "../../src/react/index";
 import { frame, pendingFrames, registerDom, settleAll } from "../client-dom";
-import { FILL_DISC, ICONS } from "../helpers";
+import { FILL_DISC, ICONS, regionScrubD } from "../helpers";
 
 registerDom();
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -211,5 +211,29 @@ describe("MorphIcon (React paint)", () => {
     expect(svg?.getAttribute("stroke")).toBe("#14854f");
     expect(svg?.querySelector("path")?.getAttribute("fill")).toBe("currentColor");
     await m.unmount();
+  });
+
+  test("the stroke width reaches the driver: stroke ↔ fill outlines at it", async () => {
+    const x1 = await regionScrubD(ICONS.x, 0.5, 1);
+    const menu3 = await regionScrubD(ICONS.menu, 0.5, 3);
+    const m = await mountIcon({
+      from: ICONS.x,
+      to: FILL_DISC,
+      progress: 0.5,
+      strokeWidth: 1,
+    });
+    expect(m.d()).toBe(x1);
+    await m.rerender({ from: ICONS.menu, to: FILL_DISC, progress: 0.5, strokeWidth: 3 });
+    expect(m.d()).toBe(menu3); // live
+    await m.rerender({
+      from: ICONS.x,
+      to: FILL_DISC,
+      progress: 0.5,
+      size: 48,
+      strokeWidth: 2,
+      absoluteStrokeWidth: true,
+    });
+    expect(m.d()).toBe(x1); // absolute: 2 px at 48 is 1 on the grid
+    expect(x1).not.toBe(await regionScrubD(ICONS.x, 0.5, 2));
   });
 });

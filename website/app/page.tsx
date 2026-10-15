@@ -94,7 +94,7 @@ export default function Home() {
             </div>
             <div className="mt-16 border-t border-hairline pt-8">
               <p className="text-sm font-medium text-ink">
-                Works with any icon set, stroked or filled — on any grid, via fitIcon.
+                Works with any icon set, stroked or filled, on any grid via fitIcon.
               </p>
               <ul className="mt-4 flex flex-wrap gap-2">
                 {COMPAT.map((name) => (

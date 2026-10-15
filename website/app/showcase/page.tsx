@@ -34,7 +34,7 @@ export default function ShowcasePage() {
           },
           {
             label: "The tradeoff",
-            body: "Filled icons need a ~5 KB chunk, fetched the first time one shows up. Until it lands they render close to exact, and a morph may fall back to a shrink-and-grow.",
+            body: "Filled icons need a 5.4 KB chunk, fetched the first time one shows up. Until it lands they render close to exact, and a morph may fall back to a shrink-and-grow.",
           },
         ]}
       >

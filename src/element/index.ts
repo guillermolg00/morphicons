@@ -32,6 +32,7 @@ interface Props {
   progress?: number;
   spring?: SpringPreset | MorphOptions;
   reducedMotion?: ReducedMotionMode;
+  strokeWidth?: string; // resolved from the presentation attributes, never set directly
 }
 
 const REACTIVE = ["icon", "from", "to", "progress", "spring", "reducedMotion"] as const;
@@ -172,6 +173,7 @@ export class MorphIconElement extends Base implements MorphHandle {
       // mount MUST paint — and on re-mounts (reconnects repaint rest state).
       const gate = this.#adopted && !this.#preConnectDirty;
       this.#adopted = false;
+      this.#props.strokeWidth = this.#sw();
       this.#ctrl = createController(this.#props);
       if (gate) {
         let armed = false;
@@ -244,6 +246,10 @@ export class MorphIconElement extends Base implements MorphHandle {
     if (PRESENTATION.has(name)) {
       const svg = this.querySelector("svg");
       if (svg) this.#applyPresentation(svg);
+      // the driver outlines stroke icons at the same width (stroke↔fill morphs);
+      // a watch with unchanged mode props only re-applies the live values
+      this.#props.strokeWidth = this.#sw();
+      this.#ctrl?.watch(this.#props);
       return;
     }
     this.#watch();
@@ -333,15 +339,19 @@ export class MorphIconElement extends Base implements MorphHandle {
     this.#path = path;
   }
 
+  /** The stroke width on the 24 grid, absolute-stroke-width resolved. */
+  #sw(): string {
+    return this.#absoluteStrokeWidth
+      ? String((Number(this.#strokeWidth) * 24) / Number(this.#size))
+      : this.#strokeWidth;
+  }
+
   #applyPresentation(svg: SVGElement): void {
     svg.setAttribute("width", this.#size);
     svg.setAttribute("height", this.#size);
     svg.setAttribute("stroke", this.#color);
     svg.setAttribute("color", this.#color); // a filled path's currentColor
-    const sw = this.#absoluteStrokeWidth
-      ? String((Number(this.#strokeWidth) * 24) / Number(this.#size))
-      : this.#strokeWidth;
-    svg.setAttribute("stroke-width", sw);
+    svg.setAttribute("stroke-width", this.#sw());
     const label = this.#label;
     let title = svg.querySelector<SVGTitleElement>("title");
     if (label) {

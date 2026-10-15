@@ -516,8 +516,15 @@ const plans = new WeakMap<IconNode, WeakMap<IconNode, MorphPlan>>();
  *  outlined at the element's stroke width, a fill icon as is. */
 export function regionOf(icon: IconInput, strokeWidth: number): IconNode {
   if (isRegion(icon)) return icon as IconNode;
-  // a fill icon ignores the width: one form for every width
-  const width = paintOf(icon) === "fill" ? 0 : strokeWidth;
+  // a fill icon ignores the width (one form for every width), unless one of
+  // its elements strokes at the width it inherits (Iconoir: dot + outline)
+  const width =
+    paintOf(icon) === "fill" &&
+    !(icon as IconNode).some(
+      ([, a]) => painted(a.stroke) && a["stroke-width"] === undefined,
+    )
+      ? 0
+      : strokeWidth;
   let byWidth = typeof icon === "string" ? undefined : forms.get(icon);
   let r = byWidth?.get(width);
   if (r) return r;

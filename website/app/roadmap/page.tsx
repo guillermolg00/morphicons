@@ -68,7 +68,7 @@ const GROUPS: Group[] = [
 				note: "Copy-paste components for the icon swaps real apps ship, in core, mask and canvas tabs.",
 			},
 			{
-				title: "Filled icons — 2.0",
+				title: "Filled icons in 2.0",
 				note: "Material Symbols, Heroicons solid, Phosphor fill: stroked and filled icons morph into each other. The code loads on first use.",
 			},
 		],

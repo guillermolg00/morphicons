@@ -13,7 +13,7 @@ import type { IconInput } from "../../src/core/types";
 import { preloadRegion } from "../../src/dom/index";
 import { defineMorphIcon, MorphIconElement } from "../../src/element/index";
 import { frame, pendingFrames, registerDom, settleAll } from "../client-dom";
-import { FILL_DISC, ICONS } from "../helpers";
+import { FILL_DISC, ICONS, regionScrubD } from "../helpers";
 
 registerDom();
 defineMorphIcon();
@@ -461,5 +461,25 @@ describe("MorphIcon (custom element paint)", () => {
     expect(svg?.getAttribute("color")).toBe("#14854f");
     expect(svg?.getAttribute("stroke")).toBe("#14854f");
     expect(svg?.querySelector("path")?.getAttribute("fill")).toBe("currentColor");
+  });
+
+  test("the stroke width reaches the driver: stroke ↔ fill outlines at it", async () => {
+    const x1 = await regionScrubD(ICONS.x, 0.5, 1);
+    const menu3 = await regionScrubD(ICONS.menu, 0.5, 3);
+    const el = document.createElement("morph-icon") as HTMLElement & Initial;
+    el.setAttribute("stroke-width", "1");
+    Object.assign(el, { from: ICONS.x, to: FILL_DISC, progress: 0.5 });
+    document.body.appendChild(el);
+    cleanups.push(() => el.remove());
+    const d = (): string => el.querySelector("path")?.getAttribute("d") ?? "";
+    expect(d()).toBe(x1);
+    el.setAttribute("stroke-width", "3"); // live
+    Object.assign(el, { from: ICONS.menu });
+    expect(d()).toBe(menu3);
+    el.setAttribute("size", "48");
+    el.setAttribute("stroke-width", "2");
+    el.setAttribute("absolute-stroke-width", "");
+    Object.assign(el, { from: ICONS.x });
+    expect(d()).toBe(x1); // absolute: 2 px at 48 is 1 on the grid
   });
 });

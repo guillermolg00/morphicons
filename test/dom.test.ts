@@ -122,6 +122,24 @@ describe("createMorph", () => {
     m.destroy();
   });
 
+  test("two morphTo before a frame: the second takes off from what is on screen", () => {
+    const p = fakePath();
+    const m = createMorph(p.el, ICONS.menu);
+    m.morphTo(ICONS.x);
+    m.morphTo(ICONS.check); // same tick: the first flight never drew a frame
+    frame(0);
+    // the screen still shows menu, so the flight starts there (it used to
+    // start from never-drawn buffers: every point at the origin)
+    const xs = (p.d.match(/-?\d+(\.\d+)?/g) ?? [])
+      .map(Number)
+      .filter((_, i) => i % 2 === 0);
+    expect(Math.min(...xs)).toBeCloseTo(4, 6);
+    expect(Math.max(...xs)).toBeCloseTo(20, 6);
+    settleAll();
+    expect(p.d).toBe(ICONS.check);
+    m.destroy();
+  });
+
   test("seek renders frozen t, no scheduler, deterministic", () => {
     const p = fakePath();
     const m = createMorph(p.el, ICONS.menu);

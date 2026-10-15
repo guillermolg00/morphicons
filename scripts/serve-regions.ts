@@ -11,12 +11,12 @@
    gzip/brotli-compressed as a CDN would. Rebuilds on any change in src/ or
    playground/.
 
-     bun scripts/serve-regions.ts            # HOST=100.x.y.z PORT=4173 */
+     bun scripts/serve-regions.ts            # HOST=100.x.y.z PORT=4173 (your tailnet IP) */
 
 import { watch } from "node:fs";
 import { brotliCompressSync, constants, gzipSync } from "node:zlib";
 
-const HOST = process.env.HOST ?? "100.107.231.16";
+const HOST = process.env.HOST ?? "127.0.0.1";
 const PORT = Number(process.env.PORT ?? 4173);
 const ROOT = new URL("..", import.meta.url).pathname;
 

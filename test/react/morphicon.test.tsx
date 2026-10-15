@@ -68,11 +68,16 @@ describe("MorphIcon (SSR)", () => {
     expect(renderToString(<MorphIcon icon={ICONS.menu} />)).toContain(
       `<path d="${ICONS.menu}"></path>`,
     );
-    // controlled: the paint of the endpoint the frozen shape is nearer to
+    // controlled with a fill endpoint: a region scrub only the lazy chunk
+    // draws, so mid-way the server rests on `from` (shape AND paint)
     const pair = (t: number) =>
       renderToString(<MorphIcon from={ICONS.menu} to={FILL_RING} progress={t} />);
-    expect(pair(0.25)).not.toMatch(/<path[^>]* fill=/);
-    expect(pair(0.75)).toMatch(/<path[^>]* fill="currentColor"/);
+    expect(pair(0.75)).toContain(`<path d="${ICONS.menu}"></path>`);
+    expect(pair(1)).toMatch(/<path[^>]* fill="currentColor"/);
+    // a stroke pair still freezes mid-way with the pure core
+    expect(
+      renderToString(<MorphIcon from={ICONS.menu} to={ICONS.x} progress={0.5} />),
+    ).not.toContain(`d="${ICONS.menu}"`);
   });
 
   test("lucide-react drop-in: size, color, strokeWidth, className passthrough", () => {

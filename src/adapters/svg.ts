@@ -42,8 +42,18 @@ const SVG_GROUP = new Set(["svg", "g", "a"]);
 // children by SVG_CONTAINER; a stray or self-closed `<defs/>` should be
 // skipped, not rejected as an unsupported element.
 const SVG_SKIP = new Set(["title", "desc", "defs", "mask", "clippath", "symbol"]);
-// Paint that inherits down the tree and decides the visible surface.
-const PAINT = ["fill", "stroke", "stroke-width", "fill-rule", "opacity", "fill-opacity"];
+// Paint that inherits down the tree and decides the visible surface
+// (display only ever propagates its `none`, see svgToIcon).
+const PAINT = [
+  "fill",
+  "stroke",
+  "stroke-width",
+  "fill-rule",
+  "opacity",
+  "fill-opacity",
+  "visibility",
+  "display",
+];
 
 type Mat = [number, number, number, number, number, number]; // a b c d e f
 
@@ -165,7 +175,12 @@ export function svgToIcon(markup: string): IconInput {
     throw new Error(
       "morphicons: svgToIcon expects SVG markup — a d string or IconNode is already an IconInput",
     );
-  const body = markup.replace(SVG_CONTAINER, "");
+  const clean = markup.replace(/<!--[\s\S]*?-->/g, "");
+  // CSS paints by selector, which a scanner can't resolve: refuse instead of
+  // guessing (an Illustrator "Internal CSS" export would read as filled).
+  if (/<style\b/i.test(clean))
+    throw new Error("morphicons: unsupported SVG element <style>");
+  const body = clean.replace(SVG_CONTAINER, "");
   const found: Found[] = [];
   const stack: Array<{ paint: Record<string, string>; m: Mat | null }> = [
     { paint: {}, m: null },
@@ -185,12 +200,15 @@ export function svgToIcon(markup: string): IconInput {
     const own = parseTransform(attrs.transform);
     const m = own ? (top.m ? mul(top.m, own) : own) : top.m;
     const paint = paintOf(top.paint, attrs);
+    if (top.paint.display === "none") paint.display = "none"; // a hidden group hides all
     if (SVG_GROUP.has(tag)) {
       if (!mt[4]) stack.push({ paint, m });
       continue;
     }
     if (!SVG_GEOMETRY.has(tag))
       throw new Error(`morphicons: unsupported SVG element <${tag}>`);
+    if (paint.display === "none" || /^(hidden|collapse)$/.test(paint.visibility ?? ""))
+      continue; // not rendered
     found.push({ tag, attrs, paint, m });
   }
   if (found.length === 0) throw new Error("morphicons: no morphable geometry in SVG");
@@ -202,7 +220,7 @@ export function svgToIcon(markup: string): IconInput {
   const fills = found.map(({ paint }) =>
     paint.fill !== undefined ? painted(paint.fill) : !painted(paint.stroke),
   );
-  const vb = SVG_VIEWBOX.exec(markup);
+  const vb = SVG_VIEWBOX.exec(clean);
 
   if (!fills.some(Boolean)) {
     // Stroke icon: the historical output (attrs verbatim), transforms baked.

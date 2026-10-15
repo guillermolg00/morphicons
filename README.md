@@ -103,7 +103,7 @@ m.morphTo(X);
 
 ## Fill icons
 
-When either icon is filled, both morph as filled shapes. The code for that (~5 KB gzip) loads the first time a filled icon shows up; stroke-only apps never download it. To bundle it instead:
+When either icon is filled, both morph as filled shapes. The code for that (5.4 KB gzip) loads the first time a filled icon shows up; stroke-only apps never download it. To bundle it instead:
 
 ```ts
 import { setRegionLoader } from "morphicons/dom";
@@ -112,7 +112,7 @@ import * as region from "morphicons/region";
 setRegionLoader(async () => region);
 ```
 
-Or call `preloadRegion()` early to fetch it before the first morph.
+Or call `preloadRegion()` early to fetch it before the first morph. For long lists of filled icons on low-end devices, run `toRegion(icon)` from `morphicons/region` at build time: the driver uses its output as is, with no normalization at runtime.
 
 ## Format adapters
 
@@ -136,7 +136,7 @@ For each pair of shapes, morphicons solves the rotation, scale and translation t
 
 ## Size
 
-gzip, enforced in CI: core 6.7 KB, `dom` 9.2, `react` 10.1, `vue` 10.1, `svelte` 11.0, `element` 10.9, `react-native` 15.7. The fill code adds 5.4 on first use. Adapters: 0.5–4.2 each.
+gzip, enforced in CI: core 6.7 KB, `dom` 9.3, `react` 10.2, `vue` 10.3, `svelte` 9.9, `element` 11.1, `react-native` 15.9. The fill code adds 5.4 on first use. Adapters: 0.5–4.2 each.
 
 ## Development
 

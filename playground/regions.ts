@@ -963,7 +963,10 @@ $("benchLoad").addEventListener("click", async () => {
     first
       ? `first real load this session: fetch ${fmt(first.responseEnd - first.startTime, 1)} ms, transfer ${first.transferSize} B, encoded ${first.encodedBodySize} B, decoded ${first.decodedBodySize} B`
       : "the chunk has not been loaded by a morph yet in this session"
-  } · network mode: <b>${netSel.value}</b> (applies to the re-imports too)</div>`;
+  } · network mode: <b id="benchNet"></b> (applies to the re-imports too)</div>`;
+  // Text node, not markup: the select's value never reaches innerHTML.
+  const net = benchOut.querySelector("#benchNet");
+  if (net) net.textContent = netSel.value;
   benchStatus.textContent = "load cost done";
 });
 
