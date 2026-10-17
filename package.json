@@ -262,7 +262,7 @@
     "@iconify-json/ph": "^1.2.2",
     "@iconify-json/ri": "^1.2.10",
     "@iconify-json/tabler": "^1.2.42",
-    "@size-limit/preset-small-lib": "^13.1.1",
+    "@size-limit/preset-small-lib": "^14.2.0",
     "@tabler/icons": "^3.49.0",
     "@types/bun": "^1.4.3",
     "@types/react": "^19.3.0",
