@@ -251,7 +251,7 @@
   ],
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
-    "@happy-dom/global-registrator": "^20.14.6",
+    "@happy-dom/global-registrator": "^21.0.1",
     "@iconify-json/bi": "^1.2.7",
     "@iconify-json/heroicons": "^1.2.3",
     "@iconify-json/iconoir": "^1.2.12",
