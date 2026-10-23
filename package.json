@@ -224,7 +224,7 @@
       "name": "svelte component (ships as source, consumer-compiled)",
       "path": "dist/MorphIcon.svelte",
       "disablePlugins": [
-        "@size-limit/esbuild"
+        "@size-limit/rolldown"
       ],
       "limit": "1.4 KB",
       "gzip": true
@@ -243,7 +243,7 @@
       "name": "astro shell (ships as source, consumer-compiled)",
       "path": "dist/MorphIcon.astro",
       "disablePlugins": [
-        "@size-limit/esbuild"
+        "@size-limit/rolldown"
       ],
       "limit": "1.75 KB",
       "gzip": true
@@ -251,7 +251,7 @@
   ],
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
-    "@happy-dom/global-registrator": "^20.14.6",
+    "@happy-dom/global-registrator": "^21.0.1",
     "@iconify-json/bi": "^1.2.7",
     "@iconify-json/heroicons": "^1.2.3",
     "@iconify-json/iconoir": "^1.2.12",
@@ -262,19 +262,19 @@
     "@iconify-json/ph": "^1.2.2",
     "@iconify-json/ri": "^1.2.10",
     "@iconify-json/tabler": "^1.2.42",
-    "@size-limit/preset-small-lib": "^13.1.1",
+    "@size-limit/preset-small-lib": "^14.2.0",
     "@tabler/icons": "^3.49.0",
     "@types/bun": "^1.4.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "feather-icons": "^4.29.2",
-    "happy-dom": "^20.14.6",
+    "happy-dom": "^21.0.1",
     "lucide": "^1.57.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-native": "^0.87.1",
     "react-native-svg": "^15.15.5",
-    "size-limit": "^13.1.1",
+    "size-limit": "^14.2.0",
     "svelte": "^5.57.2",
     "tsdown": "^0.23.1",
     "typescript": "^7.0.2",

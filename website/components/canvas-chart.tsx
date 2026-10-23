@@ -90,8 +90,10 @@ const buildDefinition = (data: Row[], color: string) =>
         curve: CURVE,
       }),
     ],
-    x: { scale: scaleLinear, axis: false, grid: false },
-    y: { scale: scaleLinear().domain(domainOf(data)), grid: true },
+    scales: {
+      x: { scale: scaleLinear, axis: false, grid: false },
+      y: { scale: scaleLinear().domain(domainOf(data)), grid: true },
+    },
     clip: true,
     margin: { top: 16, right: 16, bottom: 12, left: 56 },
   });
