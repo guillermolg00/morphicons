@@ -7,8 +7,9 @@
    test/svelte/mount.test.ts. */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { act } from "react";
+import { Activity, act } from "react";
 import { createRoot } from "react-dom/client";
+import { preloadRegion } from "../../src/dom/index";
 import type { MorphHandle, MorphIconProps } from "../../src/react/index";
 import { MorphIcon } from "../../src/react/index";
 import { frame, pendingFrames, registerDom, settleAll } from "../client-dom";
@@ -211,6 +212,33 @@ describe("MorphIcon (React paint)", () => {
     expect(svg?.getAttribute("stroke")).toBe("#14854f");
     expect(svg?.querySelector("path")?.getAttribute("fill")).toBe("currentColor");
     await m.unmount();
+  });
+
+  test("hidden by <Activity> mid fill → stroke flight, the shown icon is stroked", async () => {
+    await preloadRegion();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const render = (mode: "visible" | "hidden", icon: MorphIconProps["icon"]) =>
+      act(async () => {
+        root.render(
+          <Activity mode={mode}>
+            <MorphIcon icon={icon} />
+          </Activity>,
+        );
+      });
+    cleanups.push(() => act(async () => root.unmount()));
+    await render("visible", FILL_DISC);
+    await render("visible", ICONS.menu);
+    frame(16);
+    frame(16);
+    const path = container.querySelector("path");
+    expect(path?.getAttribute("fill")).toBe("currentColor"); // a region in flight
+    await render("hidden", ICONS.menu); // effects torn down: the driver dies mid-flight
+    await render("visible", ICONS.menu); // a new driver on the same <path>
+    expect(path?.getAttribute("d")).toBe(ICONS.menu);
+    expect(path?.getAttribute("fill")).toBe("none");
+    expect(path?.getAttribute("stroke")).toBe("inherit");
   });
 
   test("the stroke width reaches the driver: stroke ↔ fill outlines at it", async () => {

@@ -9,7 +9,7 @@
    lazy imperative birth and mid-scrub in controlled mode. */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { act } from "react";
+import { Activity, act } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import "./mocks";
@@ -154,6 +154,33 @@ describe("MorphIcon (React Native / paint)", () => {
     await m.rerender({ icon: ICONS.x, color: "#52697b", size: 32 });
     expect(m.paint("fill")).toBe("none");
     expect(m.paint("stroke")).toBe("#52697b");
+  });
+
+  test("hidden by <Activity> mid fill → stroke flight, the shown icon is stroked", async () => {
+    await preloadRegion();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const render = (mode: "visible" | "hidden", icon: MorphIconProps["icon"]) =>
+      act(async () => {
+        root.render(
+          <Activity mode={mode}>
+            <MorphIcon icon={icon} color="#52697b" />
+          </Activity>,
+        );
+      });
+    cleanups.push(() => act(async () => root.unmount()));
+    const paint = (name: string) => container.querySelector("path")?.getAttribute(name);
+    await render("visible", FILL_DISC);
+    await render("visible", ICONS.menu);
+    frame(16);
+    frame(16);
+    expect(paint("fill")).toBe("#52697b"); // a region in flight
+    await render("hidden", ICONS.menu); // effects torn down: the driver dies mid-flight
+    await render("visible", ICONS.menu); // a new driver on the same shim
+    expect(paint("d")).toBe(ICONS.menu);
+    expect(paint("fill")).toBe("none");
+    expect(paint("stroke")).toBe("#52697b");
   });
 
   test("the first commit already declares a fill icon's paint (react-native-web SSR)", () => {

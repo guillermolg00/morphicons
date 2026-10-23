@@ -939,6 +939,36 @@ describe("driver: region flights", () => {
     m.destroy();
   });
 
+  test("a driver born on an element an earlier driver painted repaints its stroke", async () => {
+    await preloadRegion();
+    const p = fake();
+    const first = createMorph(p.el, LUCIDE_X);
+    first.morphTo(PAUSE);
+    frame(16);
+    frame(16);
+    first.destroy(); // mid-flight: the element is painted filled
+    expect(p.attrs.get("fill")).toBe("currentColor");
+    // a reconnected <morph-icon>, a React effect run again on the same <path>
+    const next = createMorph(p.el, LUCIDE_X);
+    expect(p.attrs.get("d")).toBe(canonicalD(LUCIDE_X));
+    expect(p.attrs.get("fill")).toBe("none");
+    expect(p.attrs.get("stroke")).toBe("inherit");
+    next.destroy();
+  });
+
+  test("a driver born on a painted element writes its own paint, whatever is there now", async () => {
+    await preloadRegion();
+    const p = fake();
+    createMorph(p.el, PAUSE).destroy();
+    // the caller restores its stroke template between the two drivers
+    p.el.setAttribute("fill", "none");
+    p.el.setAttribute("stroke", "currentColor");
+    const next = createMorph(p.el, PAUSE);
+    expect(p.attrs.get("fill")).toBe("currentColor");
+    expect(p.attrs.get("stroke")).toBe("none");
+    next.destroy();
+  });
+
   test("a 128-point flight interrupted after the chunk is gone falls back without NaN", async () => {
     await preloadRegion();
     const p = fake();

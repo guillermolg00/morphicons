@@ -68,6 +68,10 @@ export class MorphIconElement extends Base implements MorphHandle {
   #props: Props = {};
   #ctrl: Controller | null = null;
   #path: SVGPathElement | null = null;
+  // The gate of an adopted first mount, driven by every later mount too: the
+  // driver tells a painted path by its write contract, so a reconnect must
+  // reach the path through the same one.
+  #target: PathEl | null = null;
   // First-mount bookkeeping: #adopted marks that #path came from server
   // markup; #preConnectDirty that a script moved the props away from that
   // markup before upgrade (property writes or imperative calls — attributes
@@ -182,13 +186,14 @@ export class MorphIconElement extends Base implements MorphHandle {
             if (armed) path.setAttribute(name, value);
           },
         };
+        this.#target = gated;
         try {
           this.#ctrl.mount(gated, this.#props);
         } finally {
           armed = true;
         }
       } else {
-        this.#ctrl.mount(path, this.#props);
+        this.#ctrl.mount(this.#target ?? path, this.#props);
       }
     }
   }

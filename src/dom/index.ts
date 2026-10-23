@@ -338,6 +338,12 @@ const paintAttrs = (p: Look): Record<string, string> =>
 
 const looks = new WeakMap<IconNode, Look>();
 
+// Elements a driver has painted. Their paint is whatever was written there
+// last, by a driver or not, so a driver born on one (a <morph-icon> moved in
+// the DOM, a React effect run again on the same <path>) writes its own
+// instead of assuming the markup default.
+const paintedEls = new WeakSet<PathEl>();
+
 // The look a fill icon rests on before the chunk is around: one path can't
 // paint each element its own way. Filled elements only: fill. Filled AND
 // stroked ones (Iconoir solid): both, the stroke fattens the fill. A
@@ -431,18 +437,22 @@ export function createMorph(
   let drawn = false; // the active plan's buffers hold a rendered frame
   let pending: object | null = null; // latest request waiting for the chunk
   let paint: Look = "stroke"; // what the element paints (markup default)
+  let known = !paintedEls.has(el); // false: an earlier driver painted it
   // Fallback flight (popPlan): items [0, split) are the old shape, painted
   // `popFrom` on the first half; the rest the new one, painted as it rests.
   let split = 0;
   let popFrom: Look = "stroke";
   let popBase: IconInput | null = null; // the at-rest icon a fallback took off from
 
-  // Paint attributes are written only on change, and never for stroke-only
-  // use: the element keeps inheriting the <svg>'s stroke as it always did.
+  // Paint attributes are written on change, and at birth on an element an
+  // earlier driver painted; never for stroke-only use: the element keeps
+  // inheriting the <svg>'s stroke as it always did.
   const paintAs = (p: Look): void => {
-    if (p === paint) return;
+    if (p === paint && known) return;
     for (const [k, v] of Object.entries(paintAttrs(p))) el.setAttribute(k, v);
     paint = p;
+    known = true;
+    paintedEls.add(el);
   };
 
   // The at-rest `d` + paint of an icon. A fill icon rests on its region

@@ -339,6 +339,24 @@ describe("MorphIcon (custom element SSR adoption)", () => {
     expect(path.getAttribute("stroke")).toBe("inherit");
   });
 
+  test("an adopted path a fill morph painted is stroked again after a reconnect", async () => {
+    await preloadRegion();
+    const host = document.createElement("div");
+    host.innerHTML = `<morph-icon>${SVG_OPEN}<path d="${ICONS.menu}"></path></svg></morph-icon>`;
+    document.body.appendChild(host);
+    cleanups.push(() => host.remove());
+    const el = host.querySelector("morph-icon") as MorphIconElement;
+    const path = el.querySelector("path");
+    el.morphTo(FILL_DISC);
+    settleAll();
+    expect(path?.getAttribute("fill")).toBe("currentColor");
+    el.remove();
+    host.appendChild(el);
+    expect(path?.getAttribute("d")).toBe(ICONS.menu);
+    expect(path?.getAttribute("fill")).toBe("none");
+    expect(path?.getAttribute("stroke")).toBe("inherit");
+  });
+
   test("pre-rendered markup is adopted verbatim and morphs away from it", () => {
     const host = document.createElement("div");
     host.innerHTML =
@@ -461,6 +479,20 @@ describe("MorphIcon (custom element paint)", () => {
     expect(svg?.getAttribute("color")).toBe("#14854f");
     expect(svg?.getAttribute("stroke")).toBe("#14854f");
     expect(svg?.querySelector("path")?.getAttribute("fill")).toBe("currentColor");
+  });
+
+  test("moved in the DOM after a fill morph, the rest icon is stroked again", async () => {
+    await preloadRegion();
+    const m = mountIcon({ icon: ICONS.menu });
+    const path = m.el.querySelector("path");
+    m.el.morphTo(FILL_DISC);
+    settleAll();
+    expect(path?.getAttribute("fill")).toBe("currentColor");
+    m.el.remove(); // a reorder: disconnect + connect
+    document.body.appendChild(m.el);
+    expect(m.d()).toBe(ICONS.menu);
+    expect(path?.getAttribute("fill")).toBe("none");
+    expect(path?.getAttribute("stroke")).toBe("inherit");
   });
 
   test("the stroke width reaches the driver: stroke ↔ fill outlines at it", async () => {
