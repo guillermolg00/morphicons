@@ -11,9 +11,14 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { IconInput } from "../../src/core/types";
 import { preloadRegion } from "../../src/dom/index";
-import { defineMorphIcon, MorphIconElement } from "../../src/element/index";
+import {
+  computeInitialD,
+  computeInitialPaint,
+  defineMorphIcon,
+  MorphIconElement,
+} from "../../src/element/index";
 import { frame, pendingFrames, registerDom, settleAll } from "../client-dom";
-import { FILL_DISC, ICONS, regionScrubD } from "../helpers";
+import { FILL_DISC, FILL_RING, ICONS, regionScrubD } from "../helpers";
 
 registerDom();
 defineMorphIcon();
@@ -258,6 +263,40 @@ function instrumentD(path: Element): string[] {
   return writes;
 }
 
+/** The <path> the Astro shell renders on the server for `icon`. */
+function serverPath(icon: IconInput): string {
+  const paint = Object.entries(computeInitialPaint({ icon }) ?? {})
+    .map(([k, v]) => ` ${k}="${v}"`)
+    .join("");
+  return `<path d="${computeInitialD({ icon })}"${paint}></path>`;
+}
+
+/** Server markup of `icon` in an element of the still-undefined `tag`,
+ *  connected, with `assigned` written as a property before `tag` is
+ *  defined (a saved preference restored by an earlier script). */
+function restoreBeforeUpgrade(tag: string, icon: IconInput, assigned: IconInput) {
+  const host = document.createElement("div");
+  host.innerHTML = `<${tag}>${SVG_OPEN}${serverPath(icon)}</svg></${tag}>`;
+  document.body.appendChild(host);
+  cleanups.push(() => host.remove());
+  const el = host.querySelector(tag) as MorphIconElement;
+  Object.defineProperty(el, "icon", {
+    value: assigned,
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
+  const path = el.querySelector("path") as Element;
+  const paintWrites: string[] = [];
+  const orig = path.setAttribute.bind(path);
+  path.setAttribute = (name: string, value: string): void => {
+    if (name !== "d") paintWrites.push(name);
+    orig(name, value);
+  };
+  defineMorphIcon(tag); // upgrade happens HERE
+  return { path, paintWrites };
+}
+
 describe("MorphIcon (custom element verbatim adoption: zero d writes)", () => {
   test("upgrading an adopted uncontrolled icon writes NOTHING until a real change", () => {
     const host = document.createElement("div");
@@ -319,6 +358,37 @@ describe("MorphIcon (custom element verbatim adoption: zero d writes)", () => {
     cleanups.push(() => host.remove());
     expect(el.querySelector("path")?.getAttribute("d")).toBe(ICONS.check);
     expect(pendingFrames()).toBe(0);
+  });
+
+  test("a stroke icon assigned before upgrade over a server-filled path paints its stroke", () => {
+    const { path } = restoreBeforeUpgrade("morph-icon-restored", FILL_DISC, ICONS.menu);
+    expect(path.getAttribute("d")).toBe(ICONS.menu);
+    expect(path.getAttribute("fill")).toBeNull(); // inherits the svg's fill="none"
+    expect(path.getAttribute("stroke")).toBeNull(); // and its stroke
+    expect(path.getAttribute("fill-rule")).toBeNull();
+    expect(pendingFrames()).toBe(0);
+  });
+
+  test("a fill icon assigned before upgrade over a server-filled path stays filled", () => {
+    const { path } = restoreBeforeUpgrade(
+      "morph-icon-restored-fill",
+      FILL_DISC,
+      FILL_RING,
+    );
+    expect(path.getAttribute("fill")).toBe("currentColor");
+    expect(path.getAttribute("stroke")).toBe("none");
+    expect(pendingFrames()).toBe(0);
+  });
+
+  test("a stroke icon assigned before upgrade over a server-stroked path writes no paint", () => {
+    const { path, paintWrites } = restoreBeforeUpgrade(
+      "morph-icon-restored-stroke",
+      ICONS.x,
+      ICONS.menu,
+    );
+    expect(path.getAttribute("d")).toBe(ICONS.menu);
+    expect(paintWrites).toEqual([]);
+    expect(path.getAttribute("fill")).toBeNull();
   });
 });
 

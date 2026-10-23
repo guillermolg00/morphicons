@@ -175,7 +175,8 @@ export class MorphIconElement extends Base implements MorphHandle {
       // the first real change. The gate is skipped when a pre-upgrade script
       // moved the props away from the markup (#preConnectDirty) — there the
       // mount MUST paint — and on re-mounts (reconnects repaint rest state).
-      const gate = this.#adopted && !this.#preConnectDirty;
+      const adopted = this.#adopted;
+      const gate = adopted && !this.#preConnectDirty;
       this.#adopted = false;
       this.#props.strokeWidth = this.#sw();
       this.#ctrl = createController(this.#props);
@@ -193,6 +194,11 @@ export class MorphIconElement extends Base implements MorphHandle {
           armed = true;
         }
       } else {
+        // Adopted, but a script asked for another icon: the driver paints it
+        // from the markup default (a stroke path), so a server-filled path's
+        // paint must not outlive it. A fill request writes its own back.
+        if (adopted)
+          for (const k of ["fill", "stroke", "fill-rule"]) path.removeAttribute(k);
         this.#ctrl.mount(this.#target ?? path, this.#props);
       }
     }
