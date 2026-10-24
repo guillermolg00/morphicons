@@ -272,20 +272,25 @@ function serverPath(icon: IconInput): string {
 }
 
 /** Server markup of `icon` in an element of the still-undefined `tag`,
- *  connected, with `assigned` written as a property before `tag` is
+ *  connected, with `assigned` written as properties before `tag` is
  *  defined (a saved preference restored by an earlier script). */
-function restoreBeforeUpgrade(tag: string, icon: IconInput, assigned: IconInput) {
+function restoreBeforeUpgrade(
+  tag: string,
+  icon: IconInput,
+  assigned: Partial<Record<"icon" | "from" | "to" | "progress", unknown>>,
+) {
   const host = document.createElement("div");
   host.innerHTML = `<${tag}>${SVG_OPEN}${serverPath(icon)}</svg></${tag}>`;
   document.body.appendChild(host);
   cleanups.push(() => host.remove());
   const el = host.querySelector(tag) as MorphIconElement;
-  Object.defineProperty(el, "icon", {
-    value: assigned,
-    writable: true,
-    configurable: true,
-    enumerable: true,
-  });
+  for (const [key, value] of Object.entries(assigned))
+    Object.defineProperty(el, key, {
+      value,
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
   const path = el.querySelector("path") as Element;
   const paintWrites: string[] = [];
   const orig = path.setAttribute.bind(path);
@@ -361,7 +366,9 @@ describe("MorphIcon (custom element verbatim adoption: zero d writes)", () => {
   });
 
   test("a stroke icon assigned before upgrade over a server-filled path paints its stroke", () => {
-    const { path } = restoreBeforeUpgrade("morph-icon-restored", FILL_DISC, ICONS.menu);
+    const { path } = restoreBeforeUpgrade("morph-icon-restored", FILL_DISC, {
+      icon: ICONS.menu,
+    });
     expect(path.getAttribute("d")).toBe(ICONS.menu);
     expect(path.getAttribute("fill")).toBeNull(); // inherits the svg's fill="none"
     expect(path.getAttribute("stroke")).toBeNull(); // and its stroke
@@ -370,11 +377,9 @@ describe("MorphIcon (custom element verbatim adoption: zero d writes)", () => {
   });
 
   test("a fill icon assigned before upgrade over a server-filled path stays filled", () => {
-    const { path } = restoreBeforeUpgrade(
-      "morph-icon-restored-fill",
-      FILL_DISC,
-      FILL_RING,
-    );
+    const { path } = restoreBeforeUpgrade("morph-icon-restored-fill", FILL_DISC, {
+      icon: FILL_RING,
+    });
     expect(path.getAttribute("fill")).toBe("currentColor");
     expect(path.getAttribute("stroke")).toBe("none");
     expect(pendingFrames()).toBe(0);
@@ -384,11 +389,59 @@ describe("MorphIcon (custom element verbatim adoption: zero d writes)", () => {
     const { path, paintWrites } = restoreBeforeUpgrade(
       "morph-icon-restored-stroke",
       ICONS.x,
-      ICONS.menu,
+      { icon: ICONS.menu },
     );
     expect(path.getAttribute("d")).toBe(ICONS.menu);
     expect(paintWrites).toEqual([]);
     expect(path.getAttribute("fill")).toBeNull();
+  });
+
+  test("a fill icon assigned before upgrade over a server-stroked path paints its fill", () => {
+    const { path } = restoreBeforeUpgrade("morph-icon-restored-tofill", ICONS.x, {
+      icon: FILL_DISC,
+    });
+    expect(path.getAttribute("fill")).toBe("currentColor");
+    expect(path.getAttribute("stroke")).toBe("none");
+    expect(path.getAttribute("fill-rule")).toBe("nonzero");
+    expect(pendingFrames()).toBe(0);
+  });
+
+  test("a stroke pair assigned before upgrade over a server-filled path paints its stroke", () => {
+    const { path } = restoreBeforeUpgrade("morph-icon-restored-pair", FILL_DISC, {
+      from: ICONS.menu,
+      to: ICONS.x,
+      progress: 0.25,
+    });
+    expect(path.getAttribute("d")).toBe(controlledD(0.25));
+    expect(path.getAttribute("fill")).toBeNull();
+    expect(path.getAttribute("stroke")).toBeNull();
+    expect(path.getAttribute("fill-rule")).toBeNull();
+    expect(pendingFrames()).toBe(0);
+  });
+
+  test("set() before connect over server-filled markup paints its stroke", () => {
+    const el = document.createElement("morph-icon");
+    el.innerHTML = `${SVG_OPEN}${serverPath(FILL_DISC)}</svg>`;
+    el.set(ICONS.menu);
+    document.body.appendChild(el);
+    cleanups.push(() => el.remove());
+    const path = el.querySelector("path") as Element;
+    expect(path.getAttribute("d")).toBe(ICONS.menu);
+    expect(path.getAttribute("fill")).toBeNull();
+    expect(path.getAttribute("stroke")).toBeNull();
+    expect(pendingFrames()).toBe(0);
+  });
+
+  test("a restored stroke icon morphs back to the server's fill icon filled", async () => {
+    await preloadRegion();
+    const { path } = restoreBeforeUpgrade("morph-icon-restored-back", FILL_DISC, {
+      icon: ICONS.menu,
+    });
+    const el = path.closest("morph-icon-restored-back") as MorphIconElement;
+    el.morphTo(FILL_DISC);
+    settleAll();
+    expect(path.getAttribute("fill")).toBe("currentColor");
+    expect(path.getAttribute("stroke")).toBe("none");
   });
 });
 
